@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "*.embeddedhtml": "html",
+        "list": "cpp",
+        "xhash": "cpp",
+        "xstring": "cpp",
+        "string": "cpp"
+    }
+}
