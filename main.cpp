@@ -9,7 +9,7 @@ using namespace std;
 void cinLowercase(string& str) {
     cin >> str; for(auto& c : str) c = tolower(c);
 }
-void readFileContent(const char* filePath, char* buffer) {
+void readFileContent(const string filePath, string buffer) {
     FILE* file = fopen(filePath, "r");
     if(file == NULL) {
         cout << "[-] File not found" << endl;
@@ -30,8 +30,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char* host;
-    char* port;
+    string host;
+    string port;
 
     if(argc == 2 && atoi(argv[1])) {
         host = "localhost";
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
         cout << endl;
         if(sendingMode == "1" || sendingMode == "user input") {
             cout << "[+] Input mode chosen, please enter your input: ";
-            char* input; cin >> input;
+            string input; cin >> input;
 
             cout << "[+] User input has been successfully received." << endl;
             cout << "[i] Listening to the broadcast port for clients." << endl;
@@ -76,8 +76,8 @@ int main(int argc, char *argv[]) {
         }
         else if(sendingMode == "2" || sendingMode == "file input") {
             cout << "[+] File mode chosen, please enter the file path: ";
-            char* filePath; cin >> filePath;
-            char* buffer;
+            string filePath; cin >> filePath;
+            string buffer;
             readFileContent(filePath, buffer);
 
             cout << "[+] File has been successfully read." << endl;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     else if(mode == "2" || mode == "receiver") {
         cout << "[+] Node is now a receiver" << endl;
         cout << "[?] Input the server program's port: ";
-        char* serverPort; cin >> serverPort;
+        string serverPort; cin >> serverPort;
 
         cout << "[+] Trying to contact the sender at " << host << ":" << serverPort << endl;
         

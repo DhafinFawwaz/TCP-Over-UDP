@@ -36,8 +36,12 @@ clean:
 	@echo -n ">> "
 	rm -f $(OUTPUT_DIR)/$(OBJ_MAIN) $(OUTPUT_DIR)/$(MAIN) $(OBJS) $(EXE_BUILD)
 
+
+
+RUN_ARGS = localhost 3000
+
 run:
 	$(info [Run Program])
 	@echo -n ">> "
-	./$(EXE_BUILD)
+	./$(EXE_BUILD) $(RUN_ARGS)
 	

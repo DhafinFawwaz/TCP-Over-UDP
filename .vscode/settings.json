@@ -4,6 +4,8 @@
         "list": "cpp",
         "xhash": "cpp",
         "xstring": "cpp",
-        "string": "cpp"
+        "string": "cpp",
+        "functional": "cpp",
+        "iostream": "cpp"
     }
 }

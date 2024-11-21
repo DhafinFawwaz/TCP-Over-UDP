@@ -6,10 +6,10 @@
 class Server : public Node
 {
 private:
-    char* host;
-    char* port;
+    string host;
+    string port;
 public:
-    Server(char* host, char* port);
+    Server(string host, string port);
     void handleMessage(void *buffer) override;
 };
 

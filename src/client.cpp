@@ -1,6 +1,6 @@
 #include <client.hpp>
 
-Client::Client(char* host, char* port) : host(host), port(port) {}
+Client::Client(string host, string port) : host(host), port(port) {}
 
 void Client::handleMessage(void *buffer) {
 
