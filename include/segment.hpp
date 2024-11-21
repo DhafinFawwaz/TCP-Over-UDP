@@ -36,14 +36,7 @@ struct Segment
 
     uint16_t window;
     
-    struct
-    {
-        uint64_t mem1;
-        uint64_t mem2;
-        uint64_t mem3;
-        uint64_t mem4;
-        uint64_t mem5; 
-    } options;    
+    uint8_t *options;  
 
     uint8_t *payload;
 } __attribute__((packed));
