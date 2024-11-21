@@ -11,9 +11,12 @@
 class Node
 {
 protected:
-    TCPSocket *connection;
+    string host;
+    int port;
+    TCPSocket connection;
 
 public:
+    Node(string& host, int port);
     void run();
     virtual void handleMessage(void *buffer) = 0;
 };

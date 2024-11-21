@@ -5,12 +5,12 @@
 
 class Server : public Node
 {
-private:
-    string host;
-    string port;
+    string response_buffer;
 public:
-    Server(string host, string port);
+    Server(string& host, int port);
+    void SetResponseBuffer(string buffer);
     void handleMessage(void *buffer) override;
+    ~Server();
 };
 
 #endif

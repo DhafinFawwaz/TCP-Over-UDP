@@ -1,27 +1,22 @@
 #include <iostream>
 #include <string>
-
 #include <client.hpp>
 #include <server.hpp>
+#include <fstream>
 
 using namespace std;
 
 void cinLowercase(string& str) {
     cin >> str; for(auto& c : str) c = tolower(c);
 }
-void readFileContent(const string filePath, string buffer) {
-    FILE* file = fopen(filePath, "r");
-    if(file == NULL) {
+
+string readFileContent(string& filePath) {
+    ifstream ifs(filePath);
+    if(!ifs) {
         cout << "[-] File not found" << endl;
-        return;
+        exit(1);
     }
-
-    fseek(file, 0, SEEK_END);
-    long fileSize = ftell(file);
-    rewind(file);
-
-    fread(buffer, 1, fileSize, file);
-    fclose(file);
+    return string(std::istreambuf_iterator<char>(ifs >> std::skipws), std::istreambuf_iterator<char>());
 }
 
 int main(int argc, char *argv[]) {
@@ -57,7 +52,7 @@ int main(int argc, char *argv[]) {
         cout << "[?] Please choose the sending mode" << endl;
         cout << "[?] 1. User input" << endl;
         cout << "[?] 2. File input" << endl;
-        cout << "Input: " << endl;
+        cout << "Input: ";
 
         string sendingMode; cinLowercase(sendingMode);
 
@@ -69,23 +64,21 @@ int main(int argc, char *argv[]) {
             cout << "[+] User input has been successfully received." << endl;
             cout << "[i] Listening to the broadcast port for clients." << endl;
 
-            Client client(host, port);
-            client.handleMessage(input);
-            client.run();
-            
+            Server server(host, stoi(port));
+            server.SetResponseBuffer(input);
+            server.run();
         }
         else if(sendingMode == "2" || sendingMode == "file input") {
             cout << "[+] File mode chosen, please enter the file path: ";
             string filePath; cin >> filePath;
-            string buffer;
-            readFileContent(filePath, buffer);
+            string buffer = readFileContent(filePath);
 
             cout << "[+] File has been successfully read." << endl;
             cout << "[i] Listening to the broadcast port for clients." << endl;
 
-            Client client(host, port);
-            client.handleMessage(buffer);
-            client.run();
+            Server server(host, stoi(port));
+            server.SetResponseBuffer(buffer);
+            server.run();
         }
         else cout << "[-] Invalid mode" << endl;
     }
@@ -96,9 +89,9 @@ int main(int argc, char *argv[]) {
 
         cout << "[+] Trying to contact the sender at " << host << ":" << serverPort << endl;
         
-        Server server(host, serverPort);
-        // server.handleMessage();
-        server.run();
+        Client client(host, stoi(port));
+        client.setServerTarget(host, stoi(serverPort));
+        client.run();
     }
     else cout << "[-] Invalid mode" << endl;
 

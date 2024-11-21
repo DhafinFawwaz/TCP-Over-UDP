@@ -6,11 +6,13 @@
 class Client : public Node
 {
 private:
-    string host;
-    string port;
+    string server_ip;
+    int server_port;
 public:
-    Client(string host, string port);
+    Client(string& host, int port);
+    void setServerTarget(string server_ip, int server_port);
     void handleMessage(void *buffer) override;
+    ~Client();
 };
 
 #endif

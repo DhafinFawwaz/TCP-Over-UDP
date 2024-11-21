@@ -1,11 +1,11 @@
 #ifndef socket_h
 #define socket_h
 
-#include <sys/socket.h>
 #include <string>
 #include <functional>
 #include <segment.hpp>
 #include <segment_handler.hpp>
+#include <arpa/inet.h>
 
 using namespace std;
 
@@ -33,7 +33,7 @@ private:
      * The ip address and port for the socket instance
      * Not to be confused with ip address and port of the connected connection
      */
-    string ip;
+    char* ip;
     int32_t port;
 
     /**
@@ -46,9 +46,10 @@ private:
     TCPStatusEnum status;
 
 public:
+    TCPSocket(char* ip, int32_t port);
     void listen();
-    void send(string ip, int32_t port, void *dataStream, uint32_t dataSize);
-    int32_t recv(void *buffer, uint32_t length);
+    void send(char* ip, int32_t port, void* dataStream, uint32_t dataSize);
+    int32_t recv(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* port);
     void close();
 };
 
