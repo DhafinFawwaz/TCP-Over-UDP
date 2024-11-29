@@ -17,14 +17,14 @@ private:
     // Segment *segmentBuffer; // or use std vector if you like
     vector<Segment> segmentBuffer;
 
-    void generateSegments(uint16_t sourcePort, uint16_t destPort);
-
-
 public:
+    void generateSegments(uint16_t sourcePort, uint16_t destPort);
     uint32_t generateInitialSeqNum();
     void setDataStream(uint8_t *dataStream, uint32_t dataSize);
     uint8_t getWindowSize();
-    Segment *advanceWindow(uint8_t size);
+    uint8_t advanceWindow(uint8_t size, vector<Segment> &subSegments);
+    void setInitialSeqNum(uint32_t seqNum);
+    void setInitialAckNum(uint32_t ackNum);
 };
 
 #endif

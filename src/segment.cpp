@@ -90,9 +90,8 @@ uint16_t calculateChecksum(Segment segment){
  * Return a new segment with a calcuated checksum fields
  */
 Segment updateChecksum(Segment segment){
-    Segment new_segment = segment;
-    new_segment.checksum = calculateChecksum(new_segment);
-    return new_segment;
+    segment.checksum = calculateChecksum(segment);
+    return segment;
 }
 
 /**

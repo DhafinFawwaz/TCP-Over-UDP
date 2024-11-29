@@ -43,7 +43,7 @@ private:
 
     SegmentHandler *segmentHandler;
 
-    TCPStatusEnum status;
+    TCPStatusEnum status = TCPStatusEnum::CLOSING;
 
 public:
     TCPSocket(char* ip, int32_t port);
@@ -51,6 +51,8 @@ public:
     void send(char* ip, int32_t port, void* dataStream, uint32_t dataSize);
     int32_t recv(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* port);
     void close();
+
+    string getFormattedStatus();
 };
 
 #endif

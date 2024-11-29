@@ -13,6 +13,7 @@ TCPSocket::TCPSocket(char *ip, int32_t port){
 }
 
 void TCPSocket::listen() {
+    // this->status = TCPStatusEnum::LISTEN;
     if(this->socket < 0) {
         perror("[i] socket creation failed"); 
         exit(EXIT_FAILURE); 
@@ -57,4 +58,9 @@ int32_t TCPSocket::recv(void* buffer, uint32_t length, sockaddr_in* addr, sockle
 
 void TCPSocket::close() {
     ::close(this->socket);
+}
+
+string TCPSocket::getFormattedStatus() {
+    // return "[" + to_string(this->status) + "]";
+    return "";
 }
