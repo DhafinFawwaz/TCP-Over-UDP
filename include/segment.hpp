@@ -19,7 +19,7 @@ struct Segment
         unsigned int reserved : 4;
     };
 
-    struct
+    struct Flags
     {
         unsigned int cwr : 1;
         unsigned int ece : 1;
@@ -41,9 +41,9 @@ struct Segment
     uint8_t *payload;
 } __attribute__((packed));
 
-const uint8_t FIN_FLAG = 1;
-const uint8_t SYN_FLAG = 2;
-const uint8_t ACK_FLAG = 16;
+const uint8_t FIN_FLAG = 0b00000001;
+const uint8_t SYN_FLAG = 0b00000010;
+const uint8_t ACK_FLAG = 0b00010000;
 const uint8_t SYN_ACK_FLAG = SYN_FLAG | ACK_FLAG;
 const uint8_t FIN_ACK_FLAG = FIN_FLAG | ACK_FLAG;
 
@@ -84,5 +84,8 @@ Segment updateChecksum(Segment segment);
  * Check if a TCP Segment has a valid checksum
  */
 bool isValidChecksum(Segment segment);
+
+
+uint8_t extract_flags(const Segment::Flags &flags);
 
 #endif

@@ -103,3 +103,7 @@ bool isValidChecksum(Segment segment){
     valid_sum^=segment.checksum;
     return !(~valid_sum);
 }
+
+uint8_t extract_flags(const Segment::Flags &flags) {
+    return (flags.cwr << 7) | (flags.ece << 6) | (flags.urg << 5) | (flags.ack << 4) | (flags.psh << 3) | (flags.pst << 2) | (flags.syn << 1) | (flags.fin);
+}

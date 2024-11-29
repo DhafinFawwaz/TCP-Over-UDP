@@ -10,42 +10,41 @@ void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
     uint16_t segmentCount = ceil(dataSize / 1460);
     uint32_t remainingData = dataSize;
 
-    Segment* segments  = new Segment[segmentCount];
+    // Segment* segments  = new Segment[segmentCount];
+    segmentBuffer = vector<Segment>(segmentCount);
     for(uint16_t i = 0; i < segmentCount; i++){
-        Segment segment = {0};
+        segmentBuffer.push_back({0});
 
         uint16_t payloadSize = remainingData > 1460 ? 1460 : remainingData;
 
-        segment.sourcePort = sourcePort;
-        segment.destPort = destPort;
+        segmentBuffer[i].sourcePort = sourcePort;
+        segmentBuffer[i].destPort = destPort;
 
 
         if(i==0){
-            segment.flags.syn = 1;
-            segment.seq_num = generateInitialSeqNum();
+            segmentBuffer[i].flags.syn = 1;
+            segmentBuffer[i].seq_num = generateInitialSeqNum();
         }else{
-            segment.flags.syn = 0;
-            segment.seq_num = currentSeqNum;
+            segmentBuffer[i].flags.syn = 0;
+            segmentBuffer[i].seq_num = currentSeqNum;
         }
         currentSeqNum += payloadSize;
 
-        segment.ack_num = currentAckNum;
-        segment.flags.ack = 0;
+        segmentBuffer[i].ack_num = currentAckNum;
+        segmentBuffer[i].flags.ack = 0;
 
         if(remainingData <= 1460){
-            segment.flags.fin = 1;
+            segmentBuffer[i].flags.fin = 1;
         }else{
-            segment.flags.fin = 0;
+            segmentBuffer[i].flags.fin = 0;
         }
-        segment.payload = (uint8_t*)(dataStream + dataIndex);
-        segment.options = NULL;
-        segment.window = windowSize;
-        segment.checksum = calculateChecksum(segment);
+        segmentBuffer[i].payload = (uint8_t*)(dataStream + dataIndex);
+        segmentBuffer[i].options = NULL;
+        segmentBuffer[i].window = windowSize;
+        segmentBuffer[i].checksum = calculateChecksum(segmentBuffer[i]);
         
-        segment.data_offset = 20;
+        segmentBuffer[i].data_offset = 20;
         
-        
-        segments[i] = segment;
         dataIndex += 1460;
     }
 

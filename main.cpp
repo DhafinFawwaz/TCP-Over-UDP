@@ -3,6 +3,7 @@
 #include <client.hpp>
 #include <server.hpp>
 #include <fstream>
+#include <time.h>
 
 using namespace std;
 
@@ -24,6 +25,7 @@ int main(int argc, char *argv[]) {
         cout << "Usage: ./node [host] [port]" << endl;
         return 1;
     }
+    srand (time(NULL));
 
     string host;
     string port;
