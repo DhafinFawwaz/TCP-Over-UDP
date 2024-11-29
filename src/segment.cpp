@@ -59,18 +59,24 @@ uint16_t calculateSum(Segment &segment){
     new_sum ^= (uint16_t) (segment.ack_num);
     new_sum ^= (uint16_t) (segment.ack_num>>16);
     new_sum ^= uint16_t(0) + segment.data_offset<<12 + segment.reserved<<8 + segment.flags.cwr<<7 + segment.flags.ece<<6 + segment.flags.urg<<5 + segment.flags.ack<<4 + segment.flags.psh<<3 + segment.flags.pst<<2 + segment.flags.syn<<1 + segment.flags.fin;
-    
+
     new_sum ^= segment.urg_point;
     new_sum ^= segment.window;
     uint16_t* ptr= (uint16_t*)segment.options;
-    uint8_t length = sizeof(ptr)*8;
-    for(uint16_t i = 0; i < length; i+=16){
-        new_sum ^= *(ptr+i);
-    }    
+    if(ptr !=NULL){
+        uint8_t length = sizeof(ptr)*8;
+        for(uint16_t i = 0; i < length; i+=16){
+            new_sum ^= *(ptr+i);
+        }    
+    }
+    
+
     ptr= (uint16_t*)segment.payload;
-    length = sizeof(ptr)*8;
-    for(uint16_t i = 0; i < length; i+=16){
-        new_sum ^= *(ptr+i);
+    if(ptr != NULL){
+        uint8_t payload_len = sizeof(ptr)*8;
+        for(uint16_t i = 0; i < payload_len; i+=16){
+            new_sum ^= *(ptr+i);
+        }
     }
     return new_sum;
 }

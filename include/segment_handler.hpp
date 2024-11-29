@@ -14,7 +14,9 @@ private:
     uint32_t dataIndex;
     Segment *segmentBuffer; // or use std vector if you like
 
-    void generateSegments();
+    void generateSegments(uint16_t sourcePort, uint16_t destPort);
+
+    uint32_t generateInitialSeqNum();
 
 public:
     void setDataStream(uint8_t *dataStream, uint32_t dataSize);
