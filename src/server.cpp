@@ -23,14 +23,17 @@ void Server::run() {
     SegmentHandler segment_handler;
     uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
     Segment syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
+retry:
     cout << BLU << "[i] [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << COLOR_RESET << endl;
     connection.send(inet_ntoa(addr.sin_addr), addr.sin_port, &syn_ack_segment, sync_buffer_size);
 
     Segment ack_segment;
     while (true) {
         auto ack_buffer_size = connection.recv(&ack_segment, MAXLINE, &addr, &len);
-        cout << ack_segment.ack_num << endl;
-        cout << syn_ack_segment.ack_num << endl;
+        if(ack_buffer_size < 0) {
+            cout << RED << "[-] [Handshake] Timeout, retrying" << COLOR_RESET << endl;
+            goto retry;
+        }
         if(extract_flags(ack_segment.flags) == ACK_FLAG && ack_segment.ack_num == syn_ack_segment.ack_num + 1) break;   
     }
     cout << YEL << "[i] [Handshake] [A=" << ack_segment.ack_num << "] Received ACK request from " << inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << COLOR_RESET << endl;

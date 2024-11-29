@@ -19,6 +19,7 @@ void Client::run() {
     // ======== Handshake ========
     SegmentHandler segment_handler;
     uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
+retry:
     cout << YEL << "[i] [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
     Segment syn_segment = syn(initial_seq_num);
     connection.send((char*)server_ip.c_str(), server_port, &syn_segment, MAXLINE);
@@ -27,7 +28,10 @@ void Client::run() {
     Segment syn_ack_segment;
     while(true) {
         auto sync_ack_buffer_size = connection.recv(&syn_ack_segment, MAXLINE, &addr, &len);
-        cout << syn_ack_segment.flags.syn << syn_ack_segment.flags.ack << syn_ack_segment.ack_num << endl;
+        if(sync_ack_buffer_size < 0) {
+            cout << RED << "[-] [Handshake] Timeout, retrying" << COLOR_RESET << endl;
+            goto retry;
+        }
         if(extract_flags(syn_ack_segment.flags) == SYN_ACK_FLAG && syn_ack_segment.seq_num == syn_segment.seq_num + 1) break;
     }
     cout << BLU << "[+] [Handshake] [S=" << syn_ack_segment.seq_num << "] [A=" << syn_ack_segment.ack_num << "] Received SYN-ACK request from " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;

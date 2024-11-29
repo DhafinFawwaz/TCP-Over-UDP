@@ -31,6 +31,14 @@ void TCPSocket::listen() {
         perror("[i] bind failed"); 
         exit(EXIT_FAILURE); 
     }
+
+    struct timeval timeout;
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+    if (setsockopt(this->socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        perror("Error setting socket timeout");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void TCPSocket::send(char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
