@@ -9,7 +9,7 @@ class Server : public Node
 public:
     Server(string& host, int port);
     void SetResponseBuffer(string buffer);
-    void handleMessage(void *buffer) override;
+    void run() override;
     ~Server();
 };
 

@@ -11,7 +11,8 @@ private:
 public:
     Client(string& host, int port);
     void setServerTarget(string server_ip, int server_port);
-    void handleMessage(void *buffer) override;
+    void run() override;
+    void handleMessage(void* response, uint32_t size);
     ~Client();
 };
 

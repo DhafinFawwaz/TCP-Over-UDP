@@ -17,8 +17,7 @@ protected:
 
 public:
     Node(string& host, int port);
-    void run();
-    virtual void handleMessage(void *buffer) = 0;
+    virtual void run() = 0;
 };
 
 #endif
