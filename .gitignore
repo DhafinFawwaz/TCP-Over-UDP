@@ -1,5 +1,7 @@
-# Extraas
+# Extras
 node
+peda*
+.gdb*
 
 # Prerequisites
 *.d

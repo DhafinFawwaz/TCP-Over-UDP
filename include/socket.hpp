@@ -33,8 +33,11 @@ private:
      * The ip address and port for the socket instance
      * Not to be confused with ip address and port of the connected connection
      */
-    char* ip;
+    string ip;
     int32_t port;
+
+    string server_ip;
+    int32_t server_port;
 
     /**
      * Socket descriptor
@@ -45,10 +48,16 @@ private:
 
     TCPStatusEnum status = TCPStatusEnum::CLOSING;
 
+    SegmentHandler segment_handler;
+    void initSocket();
+    int32_t recvAny(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* port);
+    void sendAny(const char* ip, int32_t port, void* dataStream, uint32_t dataSize);
+
 public:
-    TCPSocket(char* ip, int32_t port);
+    TCPSocket(string& ip, int32_t port);
     void listen();
-    void send(char* ip, int32_t port, void* dataStream, uint32_t dataSize);
+    void connect(string& server_ip, int32_t server_port);
+    void send(const char* ip, int32_t port, void* dataStream, uint32_t dataSize);
     int32_t recv(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* port);
     void close();
 
