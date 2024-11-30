@@ -64,7 +64,6 @@ int main(int argc, char *argv[]) {
             string input; cin >> input;
 
             cout << "[+] User input has been successfully received." << endl;
-            cout << "[i] Listening to the broadcast port for clients." << endl;
 
             Server server(host, stoi(port));
             server.SetResponseBuffer(input);
@@ -76,7 +75,6 @@ int main(int argc, char *argv[]) {
             string buffer = readFileContent(filePath);
 
             cout << "[+] File has been successfully read." << endl;
-            cout << "[i] Listening to the broadcast port for clients." << endl;
 
             Server server(host, stoi(port));
             server.SetResponseBuffer(buffer);
@@ -88,8 +86,7 @@ int main(int argc, char *argv[]) {
         cout << "[+] Node is now a receiver" << endl;
         cout << "[?] Input the server program's port: ";
         string serverPort; cin >> serverPort;
-
-        cout << "[+] Trying to contact the sender at " << host << ":" << serverPort << endl;
+        cout << endl;
         
         Client client(host, stoi(port));
         client.setServerTarget(host, stoi(serverPort));

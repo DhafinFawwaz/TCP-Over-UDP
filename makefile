@@ -16,9 +16,9 @@ SRC_DIR = src
 SRC = $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/*/*.cpp)$(wildcard $(SRC_DIR)/*/*/*.cpp)
 OBJS = $(patsubst %,$(OUTPUT_DIR)/%,$(SRC:.cpp=.o))
 
-.PHONY: all clean run
+.PHONY: all clean run debugbuild
 
-all: build run debugbuild
+all: clean build run
 
 
 $(OUTPUT_DIR)/%.o: %.cpp
@@ -40,7 +40,7 @@ run:
 	./$(EXE_BUILD) $(RUN_ARGS)
 
 
-DEBUG_FLAGS = -g
+DEBUG_FLAGS = -g -fsanitize=address
 DEBUG_OUTPUT_DIR = debug-bin
 DEBUG_OBJS = $(patsubst %,$(DEBUG_OUTPUT_DIR)/%,$(SRC:.cpp=.o))
 $(DEBUG_OUTPUT_DIR)/%.o: %.cpp

@@ -3,8 +3,6 @@
 #include <ansi_code.hpp>
 #include <map>
 
-#define PAYLOAD_SIZE 1460
-
 Server::Server(string& host, int port) : Node(host, port) {}
 
 void Server::SetResponseBuffer(string buffer) {

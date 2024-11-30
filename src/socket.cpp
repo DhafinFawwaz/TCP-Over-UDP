@@ -3,7 +3,7 @@
 #include <ansi_code.hpp>
 #include <iostream>
 using namespace std;
-#define PAYLOAD_SIZE 1460
+
 
 TCPSocket::TCPSocket(string& ip, int32_t port){
     this->ip = ip;
@@ -52,10 +52,9 @@ int32_t TCPSocket::recvAny(void* buffer, uint32_t length, sockaddr_in* addr, soc
 void TCPSocket::sendAny(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
     sockaddr_in targetAddr; 
     targetAddr = {0};
-    targetAddr.sin_addr.s_addr = inet_addr(ip);
     targetAddr.sin_family = AF_INET;
     targetAddr.sin_addr.s_addr = INADDR_ANY; 
-    targetAddr.sin_port = port; 
+    targetAddr.sin_port = port;
 
     sendto(this->socket, dataStream, dataSize, MSG_CONFIRM, (sockaddr*) &targetAddr, sizeof(targetAddr)); 
 }
@@ -63,35 +62,31 @@ void TCPSocket::sendAny(const char* ip, int32_t port, void* dataStream, uint32_t
 // Handshake
 void TCPSocket::listen() {
     // this->status = TCPStatusEnum::LISTEN;
-    cout << "hmmm" << endl;
     initSocket();
+    cout << BLU << "[i] " << getFormattedStatus() << " Listening to the broadcast port for clients." << COLOR_RESET << endl;
     
     
-    sockaddr_in addr;
-    socklen_t len = sizeof(addr);
+    sockaddr_in addr; socklen_t len = sizeof(addr);
     Segment syn_segment;
     int32_t sync_buffer_size;
     while (true) {
-        sync_buffer_size = recvAny(&syn_segment, PAYLOAD_SIZE, &addr, &len);
-        if(sync_buffer_size < 0) continue; // just means timeout, retry
-
-        cout << inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << endl;
-        cout << "hmmm" << endl;
+        sync_buffer_size = recvAny(&syn_segment, sizeof(syn_segment), &addr, &len);
+        if(sync_buffer_size >= 0) break; // sync_buffer_size < 0 just means timeout, retry
     }
     
-    cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << syn_segment.seq_num << "] Received SYN request from " << inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << endl << COLOR_RESET;
+    char* received_ip = inet_ntoa(addr.sin_addr);
+    cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << syn_segment.seq_num << "] Received SYN request from " << received_ip << ":" << addr.sin_port << endl << COLOR_RESET;
 
     bool retry = true;
-    SegmentHandler segment_handler;
     Segment ack_segment;
     while (retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         Segment syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
-        cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << COLOR_RESET << endl;
-        sendAny(inet_ntoa(addr.sin_addr), addr.sin_port, &syn_ack_segment, sync_buffer_size);
+        cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+        sendAny(received_ip, addr.sin_port, &syn_ack_segment, sync_buffer_size);
 
         while (true) {
-            auto ack_buffer_size = recvAny(&ack_segment, PAYLOAD_SIZE, &addr, &len);
+            auto ack_buffer_size = recvAny(&ack_segment, sizeof(ack_segment), &addr, &len);
             if(ack_buffer_size < 0) {
                 cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case is timeout
                 retry = true;
@@ -100,31 +95,33 @@ void TCPSocket::listen() {
             retry = false;
             if(extract_flags(ack_segment.flags) == ACK_FLAG && ack_segment.ack_num == syn_ack_segment.ack_num + 1) break;   
         }
-        if(retry) continue;
-        
-        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Received ACK request from " << inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << COLOR_RESET << endl;
-        
-        cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< inet_ntoa(addr.sin_addr) << ":" << addr.sin_port << COLOR_RESET << endl;
     }
+
+    cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Received ACK request from " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+    cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
 }
 
 // Handshake
 void TCPSocket::connect(string& server_ip, int32_t server_port) {
     initSocket();
+
     this->server_ip = server_ip;
     this->server_port = server_port;
 
+    cout << YEL << "[+] " << getFormattedStatus() << " Trying to contact the sender at " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
+
+
     bool retry = true;
-    sockaddr_in addr; socklen_t len;
+    sockaddr_in addr; socklen_t len = sizeof(addr);
     while(retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
         Segment syn_segment = syn(initial_seq_num);
-        sendAny(this->server_ip.c_str(), this->server_port, &syn_segment, PAYLOAD_SIZE);
-
+        sendAny(this->server_ip.c_str(), this->server_port, &syn_segment, sizeof(syn_segment));
         Segment syn_ack_segment;
+
         while(true) {
-            auto sync_ack_buffer_size = recv(&syn_ack_segment, PAYLOAD_SIZE, &addr, &len);
+            auto sync_ack_buffer_size = recvAny(&syn_ack_segment, sizeof(syn_ack_segment), &addr, &len);
             if(sync_ack_buffer_size < 0) {
                 cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case it timeout
                 retry = true;
@@ -139,8 +136,10 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
 
         Segment ack_segment = ack(syn_ack_segment.ack_num + 1);
         cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
-        sendAny(this->server_ip.c_str(), this->server_port, &ack_segment, PAYLOAD_SIZE);
+        sendAny(this->server_ip.c_str(), this->server_port, &ack_segment, sizeof(ack_segment));
     }
+    cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< this->server_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+
 }
 
 

@@ -25,6 +25,10 @@ enum TCPStatusEnum
     LAST_ACK = 8
 };
 
+
+const uint32_t PAYLOAD_SIZE = 1460;
+const uint32_t SEGMENT_ONLY_SIZE = 20;
+
 class TCPSocket
 {
     // todo add tcp connection state?
@@ -44,7 +48,6 @@ private:
      */
     int32_t socket;
 
-    SegmentHandler *segmentHandler;
 
     TCPStatusEnum status = TCPStatusEnum::CLOSING;
 

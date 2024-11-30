@@ -2,6 +2,7 @@
 node
 peda*
 .gdb*
+input.txt
 
 # Prerequisites
 *.d
