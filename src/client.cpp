@@ -4,7 +4,6 @@
 #include <fstream>
 #include <segment_handler.hpp>
 
-
 Client::Client(string& host, int port) : Node(host, port) {}
 
 void Client::setServerTarget(string server_ip, int server_port) {
@@ -27,8 +26,8 @@ void Client::run() {
 
 
 void Client::handleMessage(void* response, uint32_t size) {
-    ofstream ofs("response");
-    ofs.write((char*)response, size);
+    ofstream ofs("test/response.jpg", std::ios::binary);
+    ofs.write(reinterpret_cast<char*>(response), size);
     ofs.close();
 }
 

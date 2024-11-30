@@ -195,8 +195,10 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 
             uint32_t data_index = (LFS - initial_seq_num) / PAYLOAD_SIZE;
             Segment& send_segment = segment_handler.segmentBuffer[data_index];
-            memcpy(payload, &send_segment, sizeof(Segment));
-            memcpy(payload + sizeof(Segment), data + offset, payload_size);
+            // memcpy(payload, &send_segment, sizeof(Segment));
+            // memcpy(payload + sizeof(Segment), data + offset, payload_size);
+            *((Segment*)payload) = send_segment;
+            *((uint8_t*)payload + sizeof(Segment)) = data[offset];
 
 
             sendAny(ip, port, payload, sizeof(payload));
@@ -280,15 +282,19 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     bool fin_received = false;
     while (!fin_received) { // LAF - LFR <= RWS
         int recv_size = recvAny(&payload, sizeof(payload), addr, len);
-        cout << "recv_size: " << recv_size << endl;
         if(recv_size < 0) continue; //  no need timeout message
 
-        Segment recv_segment;
-        memccpy(&recv_segment, payload, 0, sizeof(Segment));
+        // Segment recv_segment;
+        // memccpy(&recv_segment, payload, 0, sizeof(Segment));
+        Segment recv_segment = *((Segment*)payload);
         
-        cout << recv_segment.flags.syn << " " << recv_segment.flags.fin << " " << recv_segment.flags.ack << endl;
+        // for(int i = 0; i < sizeof(Segment); i++) {
+        //     cout << (int)((uint8_t*)payload)[i] << " ";
+        // }
+        // cout << endl;
+        // cout << ((Segment*)payload)->flags.cwr << " " << ((Segment*)payload)->flags.ece << " " << ((Segment*)payload)->flags.urg << " " << ((Segment*)payload)->flags.ack << " " << ((Segment*)payload)->flags.psh << " " << ((Segment*)payload)->flags.pst << " " << ((Segment*)payload)->flags.syn << " " << ((Segment*)payload)->flags.fin << " " << endl;
+        
         if(extract_flags(recv_segment.flags) == FIN_FLAG) {
-            cout << "FIN" << endl;
             fin_received = true;
             break;
         }
@@ -318,7 +324,10 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
                 LAF = LFR + RWS;
 
                 for(uint32_t i = 0; i < buffers.size(); i++) {
-                    memcpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+                    // memcpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+                    // *((uint8_t*)receive_buffer + received_buffer_size) = *((uint8_t*)buffers[i].c_str() + sizeof(Segment));
+                    memcpy((uint8_t*)receive_buffer + received_buffer_size, (uint8_t*)buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+
                     Segment ack_segment = ack(initial_ack_num + received_buffer_size);
                     received_buffer_size += recv_size - sizeof(Segment);
                     uint32_t data_index = (ack_segment.ack_num - initial_ack_num) / PAYLOAD_SIZE;
