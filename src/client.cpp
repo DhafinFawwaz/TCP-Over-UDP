@@ -15,7 +15,7 @@ void Client::setServerTarget(string server_ip, int server_port) {
 }
 
 void Client::run() {
-    this->connection.connect(this->server_ip, this->server_port);    
+    this->connection.connect(this->server_ip, this->server_port);
 }
 
 

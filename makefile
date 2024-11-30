@@ -18,7 +18,8 @@ OBJS = $(patsubst %,$(OUTPUT_DIR)/%,$(SRC:.cpp=.o))
 
 .PHONY: all clean run debugbuild
 
-all: clean build run
+# all: clean build run
+all: build run
 
 
 $(OUTPUT_DIR)/%.o: %.cpp
