@@ -2,8 +2,12 @@
 #include <unistd.h> 
 #include <ansi_code.hpp>
 #include <iostream>
+#include <string.h> // just for memcpy
+#include <chrono>
+#include <deque>
+#include <algorithm>
 using namespace std;
-
+using namespace std::chrono;
 
 TCPSocket::TCPSocket(string& ip, int32_t port){
     this->status = TCPStatusEnum::CLOSED;
@@ -14,6 +18,14 @@ TCPSocket::TCPSocket(string& ip, int32_t port){
         perror("[i] socket creation failed"); 
         exit(EXIT_FAILURE); 
     }
+}
+
+string TCPSocket::getConnectedIP() {
+    return this->connected_ip;
+}
+
+int32_t TCPSocket::getConnectedPort() {
+    return this->connected_port;
 }
 
 void TCPSocket::initSocket() {
@@ -37,7 +49,7 @@ void TCPSocket::initSocket() {
     }
 
     struct timeval timeout;
-    timeout.tv_sec = 5;
+    timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     if (setsockopt(this->socket, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
         perror("Error setting socket timeout");
@@ -68,7 +80,7 @@ void TCPSocket::listen() {
     
     
     sockaddr_in addr; socklen_t len = sizeof(addr);
-    Segment syn_segment;
+    Segment syn_segment, syn_ack_segment, ack_segment;
     int32_t sync_buffer_size;
     while (true) {
         sync_buffer_size = recvAny(&syn_segment, sizeof(syn_segment), &addr, &len);
@@ -80,10 +92,9 @@ void TCPSocket::listen() {
     cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << syn_segment.seq_num << "] Received SYN request from " << received_ip << ":" << addr.sin_port << endl << COLOR_RESET;
 
     bool retry = true;
-    Segment ack_segment;
     while (retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
-        Segment syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
+        syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
         cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
         sendAny(received_ip, addr.sin_port, &syn_ack_segment, sync_buffer_size);
 
@@ -101,6 +112,11 @@ void TCPSocket::listen() {
 
     cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Received ACK request from " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
     cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+    this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
+    this->segment_handler.setInitialAckNum(ack_segment.ack_num);
+
+    this->connected_ip = string(received_ip);
+    this->connected_port = addr.sin_port;
 }
 
 // Handshake
@@ -108,21 +124,21 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
     initSocket();
     this->status = TCPStatusEnum::LISTEN;
 
-    this->server_ip = server_ip;
-    this->server_port = server_port;
+    this->connected_ip = server_ip;
+    this->connected_port = server_port;
 
-    cout << YEL << "[+] " << getFormattedStatus() << " Trying to contact the sender at " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
+    cout << YEL << "[+] " << getFormattedStatus() << " Trying to contact the sender at " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
 
     bool retry = true;
     sockaddr_in addr; socklen_t len = sizeof(addr);
+    Segment syn_segment, syn_ack_segment, ack_segment;
     while(retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         this->status = TCPStatusEnum::SYN_SENT;
-        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
-        Segment syn_segment = syn(initial_seq_num);
-        sendAny(this->server_ip.c_str(), this->server_port, &syn_segment, sizeof(syn_segment));
-        Segment syn_ack_segment;
+        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        syn_segment = syn(initial_seq_num);
+        sendAny(this->connected_ip.c_str(), this->connected_port, &syn_segment, sizeof(syn_segment));
 
         while(true) {
             auto sync_ack_buffer_size = recvAny(&syn_ack_segment, sizeof(syn_ack_segment), &addr, &len);
@@ -136,34 +152,213 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
         }
         if(retry) continue;
 
-        cout << BLU << "[+] " << getFormattedStatus() << " [Handshake] [S=" << syn_ack_segment.seq_num << "] [A=" << syn_ack_segment.ack_num << "] Received SYN-ACK request from " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
+        cout << BLU << "[+] " << getFormattedStatus() << " [Handshake] [S=" << syn_ack_segment.seq_num << "] [A=" << syn_ack_segment.ack_num << "] Received SYN-ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
-        Segment ack_segment = ack(syn_ack_segment.ack_num + 1);
-        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
-        sendAny(this->server_ip.c_str(), this->server_port, &ack_segment, sizeof(ack_segment));
+        ack_segment = ack(syn_ack_segment.ack_num + 1);
+        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(ack_segment));
     }
     this->status = TCPStatusEnum::ESTABLISHED;
-    cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
+    cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+
+    this->segment_handler.setInitialAckNum(ack_segment.ack_num);
+    this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
 }
 
-// Sliding window
+// Sliding window with Go-Back-N
 void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
     cout << BLU << "[i] " << getFormattedStatus() << " [i] Sending input to " << ip << ":" << port << COLOR_RESET << endl;
 
-    sockaddr_in targetAddr; 
-    targetAddr = {0};
-    targetAddr.sin_family = AF_INET;
-    targetAddr.sin_addr.s_addr = INADDR_ANY; 
-    targetAddr.sin_port = port; 
+    // TODO: find out how much should this value be
+    const uint32_t SWS = 4 * PAYLOAD_SIZE; // Sender Window Size
+    uint32_t initial_seq_num = segment_handler.getInitialSeqNum();
+    uint32_t initial_ack_num = segment_handler.getInitialAckNum();
+    uint32_t LAR = initial_seq_num - 1; // Last Acknowledgment Received. -1 because if there's only 1 segment, initial_seq_num = last_seq_num.
+    uint32_t LFS = initial_seq_num; // Last Frame Sent
+    segment_handler.setWindowSize(SWS);
+    segment_handler.setDataStream((uint8_t*)dataStream, dataSize);
+    segment_handler.generateSegments(this->port, port);
 
-    sendto(this->socket, dataStream, dataSize, MSG_CONFIRM, (sockaddr*) &targetAddr, sizeof(targetAddr)); 
+
+    uint8_t* data = (uint8_t*)(dataStream);
+    uint32_t last_seq_num = segment_handler.segmentBuffer[segment_handler.segmentBuffer.size() - 1].seq_num;
+    
+    auto send_time = high_resolution_clock::now();
+    chrono::seconds timeout(5);
+    char payload[sizeof(Segment) + PAYLOAD_SIZE];
+    while (LAR < last_seq_num) {
+
+        send_time = high_resolution_clock::now();
+        while (LFS - LAR < SWS && LAR < last_seq_num) {
+            uint32_t offset = LFS - initial_seq_num;
+            uint32_t payload_size = min(PAYLOAD_SIZE, dataSize - offset);
+
+            uint32_t data_index = (LFS - initial_seq_num) / PAYLOAD_SIZE;
+            Segment& send_segment = segment_handler.segmentBuffer[data_index];
+            memcpy(payload, &send_segment, sizeof(Segment));
+            memcpy(payload + sizeof(Segment), data + offset, payload_size);
+
+
+            sendAny(ip, port, payload, sizeof(payload));
+            cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << send_segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
+            LFS += payload_size;
+        }
+
+        sockaddr_in addr; socklen_t len = sizeof(addr);
+        Segment ack_packet;
+        while(true) {
+            auto recv_size = recvAny(&ack_packet, sizeof(ack_packet), &addr, &len);
+            if (recv_size < 0) {
+                if(high_resolution_clock::now() - timeout > send_time) {
+                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
+                    LFS = LAR;
+                    break;
+                } else continue;
+            }
+
+            uint32_t data_index = (ack_packet.ack_num - initial_ack_num) / PAYLOAD_SIZE;
+            // cout << initial_ack_num << " " << data_index << endl;
+            // cout << ack_packet.ack_num << " == " << segment_handler.segmentBuffer[data_index].ack_num << endl;
+
+            if (extract_flags(ack_packet.flags) == ACK_FLAG && ack_packet.ack_num == segment_handler.segmentBuffer[data_index].ack_num) {
+                LAR = max(LAR, segment_handler.segmentBuffer[data_index].seq_num);
+                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_packet.ack_num << "] Received" << COLOR_RESET << endl;
+            } else {
+                if(high_resolution_clock::now() - timeout > send_time) {
+                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
+                    LFS = LAR;
+                    break;
+                } else continue;
+            }
+        }
+
+    }
+    
+    segment_handler.setInitialSeqNum(LFS); // so that the next request will have a new seq_num
+    fin_send(ip, port);
 }
 
-// Sliding window
-int32_t TCPSocket::recv(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
-    cout << YEL << "[i] " << getFormattedStatus() << " [i] Ready to receive input from " << this->server_ip << ":" << this->server_port << COLOR_RESET << endl;
+void TCPSocket::fin_send(const char* ip, int32_t port) {
     
-    return recvfrom(this->socket, buffer, length, MSG_WAITALL, (sockaddr*) addr, len); 
+    Segment fin_segment = fin();
+    sendAny(ip, port, &fin_segment, sizeof(fin_segment));
+    cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending FIN request to " << ip << ":" << port << COLOR_RESET << endl;
+
+    Segment fin_ack_segment; sockaddr_in addr; socklen_t len = sizeof(addr);
+    while (true) {
+        auto recv_size = recvAny(&fin_ack_segment, sizeof(fin_ack_segment), &addr, &len);
+        if (recv_size > 0 && extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
+            cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
+            break;
+        }
+    }
+
+    Segment ack_segment = ack(fin_ack_segment.ack_num);
+    sendAny(ip, port, &ack_segment, sizeof(ack_segment));
+    cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending ACK request to " << ip << ":" << port << COLOR_RESET << endl;
+
+    cout << GRN << "[i] " << getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
+}
+
+// Sliding window with Go-Back-N
+int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
+    cout << YEL << "[i] " << getFormattedStatus() << " [i] Ready to receive input from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+    
+
+    uint32_t received_buffer_size = 0;
+
+    // TODO: find out how much should this value be
+    const uint32_t RWS = 3 * PAYLOAD_SIZE; // Receiver Window Size
+    uint32_t initial_seq_num = segment_handler.getInitialSeqNum();
+    uint32_t initial_ack_num = segment_handler.getInitialAckNum();
+    uint32_t LFR = initial_seq_num; // Last Frame Received
+    uint32_t LAF = initial_seq_num + RWS + PAYLOAD_SIZE; // Largest Acceptable Frame
+    uint32_t seq_num_ack = LFR;
+
+    vector<string> buffers;
+    char payload[sizeof(Segment) + PAYLOAD_SIZE];
+    bool fin_received = false;
+    while (!fin_received) { // LAF - LFR <= RWS
+        int recv_size = recvAny(&payload, sizeof(payload), addr, len);
+        cout << "recv_size: " << recv_size << endl;
+        if(recv_size < 0) continue; //  no need timeout message
+
+        Segment recv_segment;
+        memccpy(&recv_segment, payload, 0, sizeof(Segment));
+        
+        cout << recv_segment.flags.syn << " " << recv_segment.flags.fin << " " << recv_segment.flags.ack << endl;
+        if(extract_flags(recv_segment.flags) == FIN_FLAG) {
+            cout << "FIN" << endl;
+            fin_received = true;
+            break;
+        }
+
+        if(recv_segment.seq_num > LAF || recv_segment.seq_num < LFR) { // case outside window
+            cout << RED << "[-] " << getFormattedStatus() << " [Established] [S=" << recv_segment.seq_num << "] Discarded" << COLOR_RESET << endl;
+            continue;
+        }
+
+
+        uint32_t data_index = (recv_segment.seq_num - initial_seq_num) / PAYLOAD_SIZE;
+        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << recv_segment.seq_num << "] Received" << COLOR_RESET << endl;
+
+        // cout << ((Segment*)payload)->seq_num << endl;
+        buffers.push_back(payload);
+        if(buffers.size() == RWS/PAYLOAD_SIZE || fin_received) {
+            sort(buffers.begin(), buffers.end(), [](string& a, string& b) { // sort by seq_num ascending
+                return ((Segment*)a.c_str())->seq_num < ((Segment*)b.c_str())->seq_num;
+            });
+
+            // cout << ((Segment*)buffers[0].c_str())->seq_num << " " << LFR << " + " << PAYLOAD_SIZE << endl;
+            // cout << ((Segment*)buffers[1].c_str())->seq_num << " " << LFR << " + " << PAYLOAD_SIZE << endl;
+            // cout << ((Segment*)buffers[2].c_str())->seq_num << " " << LFR << " + " << PAYLOAD_SIZE << endl;
+            if(((Segment*)buffers[0].c_str())->seq_num == LFR) {
+                seq_num_ack = ((Segment*)(buffers[buffers.size() - 1].c_str()))->seq_num;
+                LFR = seq_num_ack;
+                LAF = LFR + RWS;
+
+                for(uint32_t i = 0; i < buffers.size(); i++) {
+                    memcpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+                    Segment ack_segment = ack(initial_ack_num + received_buffer_size);
+                    received_buffer_size += recv_size - sizeof(Segment);
+                    uint32_t data_index = (ack_segment.ack_num - initial_ack_num) / PAYLOAD_SIZE;
+                    cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+                    sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
+                }
+                buffers.clear();
+            } else {
+                continue;
+            }
+
+        }
+    }
+
+    segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
+    fin_recv(addr, len);
+
+    return received_buffer_size;
+}
+
+void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
+    cout << YEL << "[i] " << getFormattedStatus() << " [Closing] Received FIN request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+
+    cout << YEL << "[i] " << getFormattedStatus() << " [Closing] Sending FIN-ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+    Segment fin_ack_segment = finAck();
+    sendAny(this->connected_ip.c_str(), this->connected_port, &fin_ack_segment, sizeof(fin_ack_segment));
+
+    Segment ack_segment;
+    while(true) {
+        int recv_size = recvAny(&ack_segment, sizeof(ack_segment), addr, len);
+        if (recv_size > 0 && extract_flags(ack_segment.flags) == ACK_FLAG) {
+            cout << GRN << "[+] " << getFormattedStatus() << " [Closing] Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+            break;
+        } else {
+            cout << RED << "[-] " << getFormattedStatus() << " [Closing] Error, retrying" << COLOR_RESET << endl;
+        }
+    }
+
+    cout << GRN << "[i] " << getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
+
 }
 
 void TCPSocket::close() {

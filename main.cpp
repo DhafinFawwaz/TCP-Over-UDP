@@ -4,6 +4,7 @@
 #include <server.hpp>
 #include <fstream>
 #include <time.h>
+#include <segment.hpp>
 
 using namespace std;
 
@@ -75,6 +76,7 @@ int main(int argc, char *argv[]) {
             string buffer = readFileContent(filePath);
 
             cout << "[+] File has been successfully read." << endl;
+            cout << "[+] Size: " << buffer.size() << " bytes" << endl;
 
             Server server(host, stoi(port));
             server.SetResponseBuffer(buffer);

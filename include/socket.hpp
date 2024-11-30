@@ -28,8 +28,6 @@ enum TCPStatusEnum
 };
 
 
-const uint32_t PAYLOAD_SIZE = 1460;
-const uint32_t SEGMENT_ONLY_SIZE = 20;
 
 class TCPSocket
 {
@@ -42,8 +40,8 @@ private:
     string ip;
     int32_t port;
 
-    string server_ip;
-    int32_t server_port;
+    string connected_ip;
+    int32_t connected_port;
 
     /**
      * Socket descriptor
@@ -58,7 +56,14 @@ private:
     int32_t recvAny(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* port);
     void sendAny(const char* ip, int32_t port, void* dataStream, uint32_t dataSize);
 
+    void fin_send(const char* ip, int32_t port);
+    void fin_recv(sockaddr_in* addr, socklen_t* len);
+
 public:
+    const uint32_t PAYLOAD_SIZE = 1460;
+    const uint32_t SEGMENT_ONLY_SIZE = sizeof(Segment);
+    const uint32_t MAX_SEGMENT_SIZE = PAYLOAD_SIZE + SEGMENT_ONLY_SIZE;
+
     TCPSocket(string& ip, int32_t port);
     void listen();
     void connect(string& server_ip, int32_t server_port);
@@ -67,6 +72,8 @@ public:
     void close();
 
     string getFormattedStatus();
+    string getConnectedIP();
+    int32_t getConnectedPort();
 };
 
 #endif

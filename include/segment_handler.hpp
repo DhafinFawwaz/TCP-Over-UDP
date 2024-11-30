@@ -3,6 +3,7 @@
 
 #include <segment.hpp>
 #include <vector>
+#include <deque>
 using namespace std;
 
 class SegmentHandler
@@ -15,16 +16,22 @@ private:
     uint32_t dataSize;
     uint32_t dataIndex;
     // Segment *segmentBuffer; // or use std vector if you like
-    vector<Segment> segmentBuffer;
 
 public:
+    vector<Segment> segmentBuffer;
+
     void generateSegments(uint16_t sourcePort, uint16_t destPort);
     uint32_t generateInitialSeqNum();
     void setDataStream(uint8_t *dataStream, uint32_t dataSize);
     uint8_t getWindowSize();
-    uint8_t advanceWindow(uint8_t size, vector<Segment> &subSegments);
+    void setWindowSize(uint8_t windowSize);
+    uint8_t advanceWindow(deque<Segment> &subSegments);
+    
+    uint32_t getBufferSize();
     void setInitialSeqNum(uint32_t seqNum);
     void setInitialAckNum(uint32_t ackNum);
+    uint32_t getInitialSeqNum();
+    uint32_t getInitialAckNum();
 };
 
 #endif
