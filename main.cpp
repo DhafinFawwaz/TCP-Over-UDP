@@ -13,7 +13,8 @@ void cinLowercase(string& str) {
 }
 
 string readFileContent(string& filePath) {
-    ifstream ifs(filePath);
+    ifstream ifs(filePath, std::ios::binary);
+    // ifstream ifs(filePath);
     if(!ifs) {
         cout << "[-] File not found" << endl;
         exit(1);
@@ -22,6 +23,7 @@ string readFileContent(string& filePath) {
 }
 
 int main(int argc, char *argv[]) {
+    cout << sizeof(Segment) << endl;
     if(argc < 2 || argc > 3) {
         cout << "Usage: ./node [host] [port]" << endl;
         return 1;

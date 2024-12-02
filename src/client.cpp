@@ -26,7 +26,8 @@ void Client::run() {
 
 
 void Client::handleMessage(void* response, uint32_t size) {
-    ofstream ofs("test/response.jpg", std::ios::binary);
+    ofstream ofs("test/response.txt", std::ios::binary);
+    // ofstream ofs("test/response.txt");
     ofs.write(reinterpret_cast<char*>(response), size);
     ofs.close();
 }

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <deque>
 #include <algorithm>
+#include <utility> // for pair
 using namespace std;
 using namespace std::chrono;
 
@@ -168,12 +169,15 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
 // Sliding window with Go-Back-N
 void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
     cout << BLU << "[i] " << getFormattedStatus() << " [i] Sending input to " << ip << ":" << port << COLOR_RESET << endl;
+    // for(uint32_t i = 0; i < dataSize; i++) {
+    //     cout << dataStream[i];
+    // }
 
     // TODO: find out how much should this value be
     const uint32_t SWS = 4 * PAYLOAD_SIZE; // Sender Window Size
     uint32_t initial_seq_num = segment_handler.getInitialSeqNum();
     uint32_t initial_ack_num = segment_handler.getInitialAckNum();
-    uint32_t LAR = initial_seq_num - 1; // Last Acknowledgment Received. -1 because if there's only 1 segment, initial_seq_num = last_seq_num.
+    uint32_t LAR = initial_seq_num; // Last Acknowledgment Received. -1 because if there's only 1 segment, initial_seq_num = last_seq_num.
     uint32_t LFS = initial_seq_num; // Last Frame Sent
     segment_handler.setWindowSize(SWS);
     segment_handler.setDataStream((uint8_t*)dataStream, dataSize);
@@ -190,17 +194,38 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 
         send_time = high_resolution_clock::now();
         while (LFS - LAR < SWS && LAR < last_seq_num) {
+            // cout << LFS << " - " << LAR << " < " << SWS << " && " << LAR << " < " << last_seq_num << endl;
             uint32_t offset = LFS - initial_seq_num;
             uint32_t payload_size = min(PAYLOAD_SIZE, dataSize - offset);
+            if(payload_size == 0) break;
 
             uint32_t data_index = (LFS - initial_seq_num) / PAYLOAD_SIZE;
+            
+            cout << "LFS: " << LFS << endl;
+            cout << "LAR: " << LAR << endl;
+            cout << "SWS: " << SWS << endl;
+            cout << "initial_seq_num: " << initial_seq_num << endl;
+            cout << "last_seq_num: " << last_seq_num << endl;
+            cout << "data_index: " << data_index << endl;
+            cout << "payload_size: " << payload_size << endl;
+
             Segment& send_segment = segment_handler.segmentBuffer[data_index];
-            // memcpy(payload, &send_segment, sizeof(Segment));
-            // memcpy(payload + sizeof(Segment), data + offset, payload_size);
-            *((Segment*)payload) = send_segment;
-            *((uint8_t*)payload + sizeof(Segment)) = data[offset];
+            memcpy(payload, &send_segment, sizeof(Segment));
+            memcpy(payload + sizeof(Segment), data + offset, payload_size);
+            // *((Segment*)payload) = send_segment;
+            // *((uint8_t*)payload + sizeof(Segment)) = data[offset];
 
 
+
+            for(auto s : segment_handler.segmentBuffer) {
+                cout << s.seq_num << " ";
+            }
+            cout << endl;
+            cout << "content:" << endl;
+            for(uint32_t i = 0; i < payload_size; i++) {
+                cout << data[i];
+            }
+            cout << endl;
             sendAny(ip, port, payload, sizeof(payload));
             cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << send_segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
             LFS += payload_size;
@@ -210,6 +235,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
         Segment ack_packet;
         while(true) {
             auto recv_size = recvAny(&ack_packet, sizeof(ack_packet), &addr, &len);
+            cout << recv_size << endl;
             if (recv_size < 0) {
                 if(high_resolution_clock::now() - timeout > send_time) {
                     cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
@@ -277,16 +303,28 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     uint32_t LAF = initial_seq_num + RWS + PAYLOAD_SIZE; // Largest Acceptable Frame
     uint32_t seq_num_ack = LFR;
 
-    vector<string> buffers;
+    cout << "Waiting for seq_num " << initial_seq_num << endl;
+
+    // vector<string> buffers;
+    vector<pair<Segment, vector<char>>> buffers;
     char payload[sizeof(Segment) + PAYLOAD_SIZE];
     bool fin_received = false;
     while (!fin_received) { // LAF - LFR <= RWS
         int recv_size = recvAny(&payload, sizeof(payload), addr, len);
+        cout << recv_size << endl;
         if(recv_size < 0) continue; //  no need timeout message
+
+        // cout << "content:" << endl;
+        // for(int i = 0; i < recv_size; i++) {
+        //     cout << payload[i+sizeof(Segment)];
+        // }
+        // cout << *(payload+sizeof(Segment)) << endl;
 
         // Segment recv_segment;
         // memccpy(&recv_segment, payload, 0, sizeof(Segment));
         Segment recv_segment = *((Segment*)payload);
+        vector<char> content(payload + sizeof(Segment), payload + recv_size);
+        cout << "Received seq_num " << recv_segment.seq_num << endl;
         
         // for(int i = 0; i < sizeof(Segment); i++) {
         //     cout << (int)((uint8_t*)payload)[i] << " ";
@@ -308,25 +346,42 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         uint32_t data_index = (recv_segment.seq_num - initial_seq_num) / PAYLOAD_SIZE;
         cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << recv_segment.seq_num << "] Received" << COLOR_RESET << endl;
 
-        // cout << ((Segment*)payload)->seq_num << endl;
-        buffers.push_back(payload);
+        buffers.push_back(make_pair(recv_segment, content));
+        cout << "payload:" << endl;
+        for(int i = 0; i < min(recv_size, 10); i++) {
+            cout << payload[i];
+        }
+        cout << "..." << endl;
+        cout << "size: " << recv_size << endl;
+        cout << "buffers.size(): " << buffers.size() << endl;
+
         if(buffers.size() == RWS/PAYLOAD_SIZE || fin_received) {
-            sort(buffers.begin(), buffers.end(), [](string& a, string& b) { // sort by seq_num ascending
-                return ((Segment*)a.c_str())->seq_num < ((Segment*)b.c_str())->seq_num;
+            sort(buffers.begin(), buffers.end(), [](pair<Segment, vector<char>>& a, pair<Segment, vector<char>>& b) { // sort by seq_num ascending
+                return a.first.seq_num < b.first.seq_num;
             });
 
-            // cout << ((Segment*)buffers[0].c_str())->seq_num << " " << LFR << " + " << PAYLOAD_SIZE << endl;
-            // cout << ((Segment*)buffers[1].c_str())->seq_num << " " << LFR << " + " << PAYLOAD_SIZE << endl;
-            // cout << ((Segment*)buffers[2].c_str())->seq_num << " " << LFR << " + " << PAYLOAD_SIZE << endl;
-            if(((Segment*)buffers[0].c_str())->seq_num == LFR) {
-                seq_num_ack = ((Segment*)(buffers[buffers.size() - 1].c_str()))->seq_num;
+            // cout << "buffers:" << endl;
+            // cout << (Segment*)buffers[0].c_str() << (Segment*)buffers[1].c_str() << (Segment*)buffers[2].c_str() << endl;
+            // cout << buffers[0] << buffers[1] << buffers[2] << endl;
+            // cout << buffers[0 + sizeof(Segment)] << buffers[1 + sizeof(Segment)] << buffers[2 + sizeof(Segment)] << endl;
+            cout << buffers[0].first.seq_num << " " << LFR << endl;
+            cout << buffers[1].first.seq_num << " " << LFR << endl;
+            cout << buffers[2].first.seq_num << " " << LFR << endl;
+            
+            if(buffers[0].first.seq_num == LFR) {
+                seq_num_ack = buffers[buffers.size() - 1].first.seq_num;
                 LFR = seq_num_ack;
                 LAF = LFR + RWS;
 
                 for(uint32_t i = 0; i < buffers.size(); i++) {
                     // memcpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
                     // *((uint8_t*)receive_buffer + received_buffer_size) = *((uint8_t*)buffers[i].c_str() + sizeof(Segment));
-                    memcpy((uint8_t*)receive_buffer + received_buffer_size, (uint8_t*)buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+                    // memcpy((uint8_t*)receive_buffer + received_buffer_size, (uint8_t*)buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+                    // cout << "copying" << endl;
+                    // for(uint32_t i = 0; i < 100; i++) {
+                    //     cout << buffers[i + sizeof(Segment)] << endl;
+                    // }
+                    memccpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].second.data(), 0, buffers[i].second.size());
 
                     Segment ack_segment = ack(initial_ack_num + received_buffer_size);
                     received_buffer_size += recv_size - sizeof(Segment);
@@ -334,13 +389,16 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
                     cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                     sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
                 }
-                buffers.clear();
-            } else {
-                continue;
             }
-
+            buffers.clear();
         }
     }
+
+    cout << "final result" << endl;
+    for(uint32_t i = 0; i < received_buffer_size; i++) {
+        cout << ((char*)receive_buffer)[i];
+    }
+    cout << endl;
 
     segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
     fin_recv(addr, len);

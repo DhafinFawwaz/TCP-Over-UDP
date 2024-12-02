@@ -11,7 +11,7 @@ uint32_t SegmentHandler::generateInitialSeqNum(){
 
 void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
 
-    uint16_t segmentCount = ceil(dataSize / PAYLOAD_SIZE);
+    uint16_t segmentCount = ceil(dataSize / PAYLOAD_SIZE) + 1;
     uint32_t remainingData = dataSize;
 
     // Segment* segments  = new Segment[segmentCount];
