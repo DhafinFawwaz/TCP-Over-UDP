@@ -11,8 +11,15 @@ uint32_t SegmentHandler::generateInitialSeqNum(){
 
 void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
 
-    uint16_t segmentCount = ceil(dataSize / PAYLOAD_SIZE) + 1;
+    if (dataSize == 0 || dataStream == nullptr) {
+        return;
+    }
+    uint32_t segmentCount = (dataSize + PAYLOAD_SIZE - 1) / PAYLOAD_SIZE;
     uint32_t remainingData = dataSize;
+    uint32_t currentSeqNum = this->currentSeqNum;
+
+    segmentBuffer.clear();
+    segmentBuffer.reserve(segmentCount);
 
     // Segment* segments  = new Segment[segmentCount];
     segmentBuffer.clear();
@@ -34,6 +41,7 @@ void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
         }
 
         segmentBuffer[i].payload = (uint8_t*)(dataStream + currentIndex);
+        segmentBuffer[i].payload_len = payloadSize;
         segmentBuffer[i].options = NULL;
         segmentBuffer[i].window = windowSize;
         segmentBuffer[i].checksum = calculateChecksum(segmentBuffer[i]);

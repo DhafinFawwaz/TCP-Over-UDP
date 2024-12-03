@@ -71,11 +71,13 @@ uint16_t calculateSum(Segment &segment){
     }
     
 
-    ptr= (uint16_t*)segment.payload;
-    if(ptr != NULL){
-        uint8_t payload_len = sizeof(ptr)*8;
-        for(uint16_t i = 0; i < payload_len; i+=16){
-            new_sum ^= *(ptr+i);
+    if (segment.payload != nullptr && segment.payload_len > 0) {
+        uint16_t *ptr = (uint16_t *)segment.payload;
+        for (uint16_t i = 0; i < segment.payload_len / 2; ++i) {
+            new_sum ^= ptr[i];
+        }
+        if (segment.payload_len % 2) { 
+            new_sum ^= segment.payload[segment.payload_len - 1];
         }
     }
     return new_sum;
