@@ -39,6 +39,7 @@ struct Segment
     uint8_t *options;  
 
     uint8_t *payload;
+    uint16_t payload_len; 
 } __attribute__((packed));
 
 const uint8_t FIN_FLAG = 0b00000001;

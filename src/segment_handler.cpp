@@ -1,9 +1,19 @@
 #include <segment_handler.hpp>
 #include <deque>
 #include <iostream>
+#include <string.h>
 using namespace std;
 
 #define PAYLOAD_SIZE 1460
+
+SegmentHandler::~SegmentHandler() {
+    for (Segment &segment : segmentBuffer) {
+        if (segment.payload) {
+            delete[] segment.payload; 
+            segment.payload = nullptr; 
+        }
+    }
+}
 
 uint32_t SegmentHandler::generateInitialSeqNum(){
     return rand() % 1000;
@@ -40,7 +50,15 @@ void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
             segmentBuffer[i].ack_num = segmentBuffer[i-1].ack_num + payloadSize;
         }
 
-        segmentBuffer[i].payload = (uint8_t*)(dataStream + currentIndex);
+        segmentBuffer[i].payload = new uint8_t[payloadSize];
+        if (currentIndex + payloadSize <= dataSize) {
+            memcpy(segmentBuffer[i].payload, dataStream + currentIndex, payloadSize);
+        } else {
+            
+            memcpy(segmentBuffer[i].payload, dataStream + currentIndex, dataSize - currentIndex);
+        }
+
+        
         segmentBuffer[i].payload_len = payloadSize;
         segmentBuffer[i].options = NULL;
         segmentBuffer[i].window = windowSize;

@@ -19,6 +19,7 @@ private:
 
 public:
     vector<Segment> segmentBuffer;
+    ~SegmentHandler();
 
     void generateSegments(uint16_t sourcePort, uint16_t destPort);
     uint32_t generateInitialSeqNum();

@@ -1,5 +1,5 @@
 #include <segment.hpp>
-
+#include <iostream>
 Segment syn(uint32_t seqNum){
     Segment segment = {0};
     segment.flags.syn = 1;
@@ -72,6 +72,7 @@ uint16_t calculateSum(Segment &segment){
     
 
     if (segment.payload != nullptr && segment.payload_len > 0) {
+        std::cout << "payload\n";
         uint16_t *ptr = (uint16_t *)segment.payload;
         for (uint16_t i = 0; i < segment.payload_len / 2; ++i) {
             new_sum ^= ptr[i];
