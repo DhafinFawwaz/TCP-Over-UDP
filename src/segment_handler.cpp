@@ -18,6 +18,8 @@ SegmentHandler::~SegmentHandler() {
 uint32_t SegmentHandler::generateInitialSeqNum(){
     return rand() % 1000;
 }
+void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort){
+}
 
 void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
 

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <deque>
 #include <algorithm>
+#include <map>
 #include <utility> // for pair
 using namespace std;
 using namespace std::chrono;
@@ -181,100 +182,140 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
     uint32_t LFS = initial_seq_num; // Last Frame Sent
     segment_handler.setWindowSize(SWS);
     segment_handler.setDataStream((uint8_t*)dataStream, dataSize);
-    segment_handler.generateSegments(this->port, port);
+    // segment_handler.generateSegments(this->port, port);
+    segment_handler.generateSegmentsMap(this->port, port);
 
 
-    uint8_t* data = (uint8_t*)(dataStream);
-    uint32_t last_seq_num = segment_handler.segmentBuffer[segment_handler.segmentBuffer.size() - 1].seq_num;
-    
-    auto send_time = high_resolution_clock::now();
-    uint32_t data_index = 0; 
-    uint32_t offset = 0;
+    auto send_time = high_resolution_clock::now();  
     chrono::seconds timeout(5);
-    char payload[sizeof(Segment) + PAYLOAD_SIZE];
-    while (LAR < last_seq_num) {
-
-        send_time = high_resolution_clock::now();
-        while (LFS - LAR < SWS && LAR < last_seq_num) {
-            // cout << LFS << " - " << LAR << " < " << SWS << " && " << LAR << " < " << last_seq_num << endl;
-            offset = LFS - initial_seq_num;
-            uint32_t payload_size = min(PAYLOAD_SIZE, dataSize - offset);
-            if(payload_size == 0) break;
-
-            data_index = offset / PAYLOAD_SIZE;
-            if (data_index >= segment_handler.segmentBuffer.size()) break;
-            
-            cout << "LFS: " << LFS << endl;
-            cout << "LAR: " << LAR << endl;
-            cout << "SWS: " << SWS << endl;
-            cout << "initial_seq_num: " << initial_seq_num << endl;
-            cout << "last_seq_num: " << last_seq_num << endl;
-            cout << "data_index: " << data_index << endl;
-            cout << "payload_size: " << payload_size << endl;
-
-            Segment& send_segment = segment_handler.segmentBuffer[data_index];
-            memcpy(payload, &send_segment, sizeof(Segment));
-            if (offset + payload_size <= dataSize) {
-                memcpy(payload + sizeof(Segment), data + offset, payload_size);
-            }
-            // *((Segment*)payload) = send_segment;
-            // *((uint8_t*)payload + sizeof(Segment)) = data[offset];
-
-
-
-            for(auto s : segment_handler.segmentBuffer) {
-                cout << s.seq_num << " ";
-            }
-            cout << endl;
-            cout << "content:" << endl;
-            for(uint32_t i = 0; i < payload_size; i++) {
-                cout << data[i];
-            }
-            cout << endl;
-            sendAny(ip, port, payload, sizeof(payload));
-            cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << send_segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
-            LFS += payload_size;
-
+    while(true) {
+        for(auto& [seq_num, segment] : segment_handler.segmentMap) {
+            if(seq_num < LFS) continue;
+            if(seq_num > LAR) break;
+            sendAny(ip, port, &segment, sizeof(segment));
+            uint32_t data_index = ceil((seq_num - initial_seq_num) / PAYLOAD_SIZE);
+            cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
+            LFS = seq_num;
         }
 
+        Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
-        Segment ack_packet;
-        while(true) {
-            auto recv_size = recvAny(&ack_packet, sizeof(ack_packet), &addr, &len);
-            if (recv_size < 0) {
-                if(high_resolution_clock::now() - timeout > send_time) {
-                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
-                    // Reset window state
-                    LFS = LAR;
-                    data_index = (LAR - initial_seq_num) / PAYLOAD_SIZE;
-                    offset = LAR - initial_seq_num;
-                    // Reset timer
-                    send_time = high_resolution_clock::now();
-                    break;
-                }
-                continue;
-            }
+        auto recv_size = recvAny(&ack_segment, sizeof(ack_segment), &addr, &len);
 
-            uint32_t data_index = (ack_packet.ack_num - initial_ack_num) / PAYLOAD_SIZE;
-            // cout << initial_ack_num << " " << data_index << endl;
-            // cout << ack_packet.ack_num << " == " << segment_handler.segmentBuffer[data_index].ack_num << endl;
-
-            if (extract_flags(ack_packet.flags) == ACK_FLAG && ack_packet.ack_num == segment_handler.segmentBuffer[data_index].ack_num) {
-                LAR = max(LAR, segment_handler.segmentBuffer[data_index].seq_num);
-                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_packet.ack_num << "] Received" << COLOR_RESET << endl;
-            } else {
-                if(high_resolution_clock::now() - timeout > send_time) {
-                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
-                    LFS = LAR;
-                    break;
-                } else continue;
-            }
+        if(recv_size < 0) {
+            if(high_resolution_clock::now() - send_time > timeout) {
+                this->status = TCPStatusEnum::FAILED;
+                break;
+            } else continue;
         }
 
+        if(extract_flags(ack_segment.flags) == ACK_FLAG && ack_segment.ack_num == segment_handler.segmentMap[LAR].ack_num) {
+            LAR = max(LAR, segment_handler.segmentMap[LAR].seq_num);
+            uint32_t data_index = ceil((LAR - initial_seq_num) / PAYLOAD_SIZE);
+            cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Received" << COLOR_RESET << endl;
+        }
+    }
+
+    if(this->status == TCPStatusEnum::FAILED) {
+        cout << RED << "[-] " << getFormattedStatus() << " [Failed]" << COLOR_RESET << endl;
+        return;
     }
     
     segment_handler.setInitialSeqNum(LFS); // so that the next request will have a new seq_num
     fin_send(ip, port);
+
+    // segment_handler.segmentMap
+
+
+    // uint8_t* data = (uint8_t*)(dataStream);
+    // uint32_t last_seq_num = segment_handler.segmentBuffer[segment_handler.segmentBuffer.size() - 1].seq_num;
+    
+    // auto send_time = high_resolution_clock::now();
+    // uint32_t data_index = 0; 
+    // uint32_t offset = 0;
+    // chrono::seconds timeout(5);
+    // char payload[sizeof(Segment) + PAYLOAD_SIZE];
+    // while (LAR < last_seq_num) {
+
+    //     send_time = high_resolution_clock::now();
+    //     while (LFS - LAR < SWS && LAR < last_seq_num) {
+    //         // cout << LFS << " - " << LAR << " < " << SWS << " && " << LAR << " < " << last_seq_num << endl;
+    //         offset = LFS - initial_seq_num;
+    //         uint32_t payload_size = min(PAYLOAD_SIZE, dataSize - offset);
+    //         if(payload_size == 0) break;
+
+    //         data_index = offset / PAYLOAD_SIZE;
+    //         if (data_index >= segment_handler.segmentBuffer.size()) break;
+            
+    //         cout << "LFS: " << LFS << endl;
+    //         cout << "LAR: " << LAR << endl;
+    //         cout << "SWS: " << SWS << endl;
+    //         cout << "initial_seq_num: " << initial_seq_num << endl;
+    //         cout << "last_seq_num: " << last_seq_num << endl;
+    //         cout << "data_index: " << data_index << endl;
+    //         cout << "payload_size: " << payload_size << endl;
+
+    //         Segment& send_segment = segment_handler.segmentBuffer[data_index];
+    //         memcpy(payload, &send_segment, sizeof(Segment));
+    //         if (offset + payload_size <= dataSize) {
+    //             memcpy(payload + sizeof(Segment), data + offset, payload_size);
+    //         }
+    //         // *((Segment*)payload) = send_segment;
+    //         // *((uint8_t*)payload + sizeof(Segment)) = data[offset];
+
+
+
+    //         for(auto s : segment_handler.segmentBuffer) {
+    //             cout << s.seq_num << " ";
+    //         }
+    //         cout << endl;
+    //         cout << "content:" << endl;
+    //         for(uint32_t i = 0; i < payload_size; i++) {
+    //             cout << data[i];
+    //         }
+    //         cout << endl;
+    //         sendAny(ip, port, payload, sizeof(payload));
+    //         cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << send_segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
+    //         LFS += payload_size;
+
+    //     }
+
+    //     sockaddr_in addr; socklen_t len = sizeof(addr);
+    //     Segment ack_packet;
+    //     while(true) {
+    //         auto recv_size = recvAny(&ack_packet, sizeof(ack_packet), &addr, &len);
+    //         if (recv_size < 0) {
+    //             if(high_resolution_clock::now() - timeout > send_time) {
+    //                 cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
+    //                 // Reset window state
+    //                 LFS = LAR;
+    //                 data_index = (LAR - initial_seq_num) / PAYLOAD_SIZE;
+    //                 offset = LAR - initial_seq_num;
+    //                 // Reset timer
+    //                 send_time = high_resolution_clock::now();
+    //                 break;
+    //             }
+    //             continue;
+    //         }
+
+    //         uint32_t data_index = (ack_packet.ack_num - initial_ack_num) / PAYLOAD_SIZE;
+    //         // cout << initial_ack_num << " " << data_index << endl;
+    //         // cout << ack_packet.ack_num << " == " << segment_handler.segmentBuffer[data_index].ack_num << endl;
+
+    //         if (extract_flags(ack_packet.flags) == ACK_FLAG && ack_packet.ack_num == segment_handler.segmentBuffer[data_index].ack_num) {
+    //             LAR = max(LAR, segment_handler.segmentBuffer[data_index].seq_num);
+    //             cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_packet.ack_num << "] Received" << COLOR_RESET << endl;
+    //         } else {
+    //             if(high_resolution_clock::now() - timeout > send_time) {
+    //                 cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout, retrying..." << COLOR_RESET << endl;
+    //                 LFS = LAR;
+    //                 break;
+    //             } else continue;
+    //         }
+    //     }
+
+    // }
+    
 }
 
 void TCPSocket::fin_send(const char* ip, int32_t port) {
@@ -316,176 +357,266 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
     cout << "Waiting for seq_num " << initial_seq_num << endl;
 
-    // vector<string> buffers;
-    vector<pair<Segment, vector<char>>> buffers;
+    map<uint32_t, pair<Segment, vector<char>>> buffers;
+    auto send_time = high_resolution_clock::now();
+    chrono::seconds timeout(5);
     char payload[sizeof(Segment) + PAYLOAD_SIZE];
-    bool fin_received = false;
-    while (!fin_received) { // LAF - LFR <= RWS
-        cout << "\nWindow State:" << endl;
-        cout << "LFR: " << LFR << " (Last Frame Received)" << endl;
-        cout << "LAF: " << LAF << " (Largest Acceptable Frame)" << endl;
-        cout << "seq_num_ack: " << seq_num_ack << endl;
-        cout << "-------------------" << endl;
-        memset(addr, 0, sizeof(*addr));
-        *len = sizeof(*addr);
+    while (true) {
         int recv_size = recvAny(&payload, sizeof(payload), addr, len);
         if(recv_size < 0) {
-            if(errno == EAGAIN || errno == EWOULDBLOCK) {
-                // Timeout case - just continue
+            if(high_resolution_clock::now() - send_time > timeout) {
+                this->status = TCPStatusEnum::FAILED;
+                break;
+            } else continue;
+        }
+
+        Segment recv_segment;
+        memccpy(&recv_segment, payload, 0, sizeof(Segment));
+        if(!isValidChecksum(recv_segment)) {
+            uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+            cout << RED << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << recv_segment.seq_num << "] Receive Corrupted" << COLOR_RESET << endl;
+            continue; // discard
+        }
+
+
+
+        if(recv_segment.seq_num < LFR && recv_segment.seq_num >= LAF) {
+            if(recv_segment.seq_num >= initial_seq_num) { // meaning it has been acked but the ack is loss so the server resend it.
+                // resend the ack
+                uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+                Segment ack_segment = ack(seq_num_ack);
+                sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
+                cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << seq_num_ack << "] Resent" << COLOR_RESET << endl;
                 continue;
             }
-            cout << "Receizve failed with error: " << strerror(errno) << endl;
-            cout << "Current port: " << this->port << endl;
-            cout << "Expected server: " << this->connected_ip << ":" << this->connected_port << endl;
-            continue;
+            continue; // discard
         }
-        cout << recv_size << endl;
-        if(recv_size < 0) continue; //  no need timeout message
 
-        // cout << "content:" << endl;
-        // for(int i = 0; i < recv_size; i++) {
-        //     cout << payload[i+sizeof(Segment)];
-        // }
-        // cout << *(payload+sizeof(Segment)) << endl;
-
-        // Segment recv_segment;
-        // memccpy(&recv_segment, payload, 0, sizeof(Segment));
-        Segment recv_segment = *((Segment*)payload);
-        vector<char> content(payload + sizeof(Segment), payload + recv_size);
-        cout << "Received seq_num " << recv_segment.seq_num << endl;
-        
-        // for(int i = 0; i < sizeof(Segment); i++) {
-        //     cout << (int)((uint8_t*)payload)[i] << " ";
-        // }
-        // cout << endl;
-        // cout << ((Segment*)payload)->flags.cwr << " " << ((Segment*)payload)->flags.ece << " " << ((Segment*)payload)->flags.urg << " " << ((Segment*)payload)->flags.ack << " " << ((Segment*)payload)->flags.psh << " " << ((Segment*)payload)->flags.pst << " " << ((Segment*)payload)->flags.syn << " " << ((Segment*)payload)->flags.fin << " " << endl;
-        
         if(extract_flags(recv_segment.flags) == FIN_FLAG) {
-            fin_received = true;
             break;
         }
 
-        if(recv_segment.seq_num > LAF || recv_segment.seq_num < LFR) { // case outside window
-            cout << RED << "[-] " << getFormattedStatus() << " [Established] [S=" << recv_segment.seq_num << "] Discarded" << COLOR_RESET << endl;
+
+
+
+        buffers[recv_segment.seq_num] = make_pair(
+            recv_segment, 
+            vector<char> (payload + sizeof(Segment), payload + recv_size)
+        );
+        uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+        cout << YEL << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [S=" << recv_segment.seq_num << "] Ack" << COLOR_RESET << endl;
+
+        if(recv_segment.seq_num != seq_num_ack) {
+            continue; // save it for later
+        }
+
+        uint32_t total_received = 0;
+        // iterate buffer from seq_num_ack to latest element of the map/buffer
+        for(auto& [seq_num, pair] : buffers) {
+            if(!seq_num == seq_num_ack) continue;
+            total_received += pair.second.size();
+        }
+
+        if(!(buffers.end()->first + buffers.end()->second.second.size() - LFR == total_received)) {
             continue;
         }
 
-        if(recv_segment.seq_num == LFR) {
+
+        seq_num_ack = buffers.end()->first + buffers.end()->second.second.size();
+        LFR = seq_num_ack;
+        Segment ack_segment = ack(seq_num_ack);
+        sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
+        
+        uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [S=" << seq_num_ack << "] Sent" << COLOR_RESET << endl;
+    }
+    if(this->status == TCPStatusEnum::FAILED) {
+        cout << RED << "[-] " << getFormattedStatus() << " [Failed]" << COLOR_RESET << endl;
+        return;
+    }
+    
+    segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
+
+    uint32_t current = 0;
+    for(auto& [seq_num, pair] : buffers) {
+        memccpy(receive_buffer, pair.second.data(), current, pair.second.size());
+        current += pair.second.size();
+    }
+
+    fin_recv(addr, len);
+
+
+    // vector<string> buffers;
+    // vector<pair<Segment, vector<char>>> buffers;
+    // char payload[sizeof(Segment) + PAYLOAD_SIZE];
+    // bool fin_received = false;
+    // while (!fin_received) { // LAF - LFR <= RWS
+    //     cout << "\nWindow State:" << endl;
+    //     cout << "LFR: " << LFR << " (Last Frame Received)" << endl;
+    //     cout << "LAF: " << LAF << " (Largest Acceptable Frame)" << endl;
+    //     cout << "seq_num_ack: " << seq_num_ack << endl;
+    //     cout << "-------------------" << endl;
+    //     memset(addr, 0, sizeof(*addr));
+    //     *len = sizeof(*addr);
+    //     int recv_size = recvAny(&payload, sizeof(payload), addr, len);
+    //     if(recv_size < 0) {
+    //         if(errno == EAGAIN || errno == EWOULDBLOCK) {
+    //             // Timeout case - just continue
+    //             continue;
+    //         }
+    //         cout << "Receizve failed with error: " << strerror(errno) << endl;
+    //         cout << "Current port: " << this->port << endl;
+    //         cout << "Expected server: " << this->connected_ip << ":" << this->connected_port << endl;
+    //         continue;
+    //     }
+    //     cout << recv_size << endl;
+    //     if(recv_size < 0) continue; //  no need timeout message
+
+    //     // cout << "content:" << endl;
+    //     // for(int i = 0; i < recv_size; i++) {
+    //     //     cout << payload[i+sizeof(Segment)];
+    //     // }
+    //     // cout << *(payload+sizeof(Segment)) << endl;
+
+    //     // Segment recv_segment;
+    //     // memccpy(&recv_segment, payload, 0, sizeof(Segment));
+    //     Segment recv_segment = *((Segment*)payload);
+    //     vector<char> content(payload + sizeof(Segment), payload + recv_size);
+    //     cout << "Received seq_num " << recv_segment.seq_num << endl;
+        
+    //     // for(int i = 0; i < sizeof(Segment); i++) {
+    //     //     cout << (int)((uint8_t*)payload)[i] << " ";
+    //     // }
+    //     // cout << endl;
+    //     // cout << ((Segment*)payload)->flags.cwr << " " << ((Segment*)payload)->flags.ece << " " << ((Segment*)payload)->flags.urg << " " << ((Segment*)payload)->flags.ack << " " << ((Segment*)payload)->flags.psh << " " << ((Segment*)payload)->flags.pst << " " << ((Segment*)payload)->flags.syn << " " << ((Segment*)payload)->flags.fin << " " << endl;
+        
+    //     if(extract_flags(recv_segment.flags) == FIN_FLAG) {
+    //         fin_received = true;
+    //         break;
+    //     }
+
+    //     if(recv_segment.seq_num > LAF || recv_segment.seq_num < LFR) { // case outside window
+    //         cout << RED << "[-] " << getFormattedStatus() << " [Established] [S=" << recv_segment.seq_num << "] Discarded" << COLOR_RESET << endl;
+    //         continue;
+    //     }
+
+    //     if(recv_segment.seq_num == LFR) {
            
   
-            memcpy((uint8_t*)receive_buffer + received_buffer_size, content.data(), content.size());
+    //         memcpy((uint8_t*)receive_buffer + received_buffer_size, content.data(), content.size());
             
-            // Update window
-            LFR += content.size();
-            LAF = LFR + RWS;
-            seq_num_ack = LFR;
+    //         // Update window
+    //         LFR += content.size();
+    //         LAF = LFR + RWS;
+    //         seq_num_ack = LFR;
             
-            // Send ACK
-            Segment ack_segment = ack(initial_ack_num + received_buffer_size);
-            received_buffer_size += content.size();
-            sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
+    //         // Send ACK
+    //         Segment ack_segment = ack(initial_ack_num + received_buffer_size);
+    //         received_buffer_size += content.size();
+    //         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
             
-            // Process any buffered segments that are now in order
-            while(!buffers.empty()) {
-                sort(buffers.begin(), buffers.end(), [](pair<Segment, vector<char>>& a, pair<Segment, vector<char>>& b) { 
-                return a.first.seq_num < b.first.seq_num;
-            });
+    //         // Process any buffered segments that are now in order
+    //         while(!buffers.empty()) {
+    //             sort(buffers.begin(), buffers.end(), [](pair<Segment, vector<char>>& a, pair<Segment, vector<char>>& b) { 
+    //             return a.first.seq_num < b.first.seq_num;
+    //         });
                 
-                if(buffers[0].first.seq_num == LFR) {
-                    auto& next_segment = buffers[0];
-                    memcpy((uint8_t*)receive_buffer + received_buffer_size, 
-                           next_segment.second.data(), next_segment.second.size());
+    //             if(buffers[0].first.seq_num == LFR) {
+    //                 auto& next_segment = buffers[0];
+    //                 memcpy((uint8_t*)receive_buffer + received_buffer_size, 
+    //                        next_segment.second.data(), next_segment.second.size());
                     
-                    LFR += next_segment.second.size();
-                    LAF = LFR + RWS;
-                    seq_num_ack = LFR;
+    //                 LFR += next_segment.second.size();
+    //                 LAF = LFR + RWS;
+    //                 seq_num_ack = LFR;
                     
-                    Segment ack_segment = ack(initial_ack_num + received_buffer_size);
-                    received_buffer_size += next_segment.second.size();
-                    sendAny(this->connected_ip.c_str(), this->connected_port, 
-                           &ack_segment, sizeof(Segment));
+    //                 Segment ack_segment = ack(initial_ack_num + received_buffer_size);
+    //                 received_buffer_size += next_segment.second.size();
+    //                 sendAny(this->connected_ip.c_str(), this->connected_port, 
+    //                        &ack_segment, sizeof(Segment));
                     
-                    buffers.erase(buffers.begin());
-                } else {
-                    break;
-                }
-            }
-        } else {
+    //                 buffers.erase(buffers.begin());
+    //             } else {
+    //                 break;
+    //             }
+    //         }
+    //     } else {
            
-            buffers.push_back(make_pair(recv_segment, content));
-        }
+    //         buffers.push_back(make_pair(recv_segment, content));
+    //     }
 
-        uint32_t data_index = (recv_segment.seq_num - initial_seq_num) / PAYLOAD_SIZE;
-        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << recv_segment.seq_num << "] Received" << COLOR_RESET << endl;
+    //     uint32_t data_index = (recv_segment.seq_num - initial_seq_num) / PAYLOAD_SIZE;
+    //     cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << recv_segment.seq_num << "] Received" << COLOR_RESET << endl;
 
-        buffers.push_back(make_pair(recv_segment, content));
-        cout << "payload:" << endl;
-        for(int i = 0; i < min(recv_size, 10); i++) {
-            cout << payload[i];
-        }
-        cout << "..." << endl;
-        cout << "size: " << recv_size << endl;
-        cout << "buffers.size(): " << buffers.size() << endl;
+    //     buffers.push_back(make_pair(recv_segment, content));
+    //     cout << "payload:" << endl;
+    //     for(int i = 0; i < min(recv_size, 10); i++) {
+    //         cout << payload[i];
+    //     }
+    //     cout << "..." << endl;
+    //     cout << "size: " << recv_size << endl;
+    //     cout << "buffers.size(): " << buffers.size() << endl;
 
-        if(buffers.size() == RWS/PAYLOAD_SIZE || fin_received) {
-            sort(buffers.begin(), buffers.end(), [](pair<Segment, vector<char>>& a, pair<Segment, vector<char>>& b) { // sort by seq_num ascending
-                return a.first.seq_num < b.first.seq_num;
-            });
+    //     if(buffers.size() == RWS/PAYLOAD_SIZE || fin_received) {
+    //         sort(buffers.begin(), buffers.end(), [](pair<Segment, vector<char>>& a, pair<Segment, vector<char>>& b) { // sort by seq_num ascending
+    //             return a.first.seq_num < b.first.seq_num;
+    //         });
 
-            // cout << "buffers:" << endl;
-            // cout << (Segment*)buffers[0].c_str() << (Segment*)buffers[1].c_str() << (Segment*)buffers[2].c_str() << endl;
-            // cout << buffers[0] << buffers[1] << buffers[2] << endl;
-            // cout << buffers[0 + sizeof(Segment)] << buffers[1 + sizeof(Segment)] << buffers[2 + sizeof(Segment)] << endl;
-            for (int i = 0; i < 3; i++) {
-                cout << "Buffer[" << i << "] Seq=" << buffers[i].first.seq_num 
-                    << " (LFR=" << LFR << ")" << endl;
-            }
-            cout << "Window State ----------------------" << endl;
+    //         // cout << "buffers:" << endl;
+    //         // cout << (Segment*)buffers[0].c_str() << (Segment*)buffers[1].c_str() << (Segment*)buffers[2].c_str() << endl;
+    //         // cout << buffers[0] << buffers[1] << buffers[2] << endl;
+    //         // cout << buffers[0 + sizeof(Segment)] << buffers[1 + sizeof(Segment)] << buffers[2 + sizeof(Segment)] << endl;
+    //         for (int i = 0; i < 3; i++) {
+    //             cout << "Buffer[" << i << "] Seq=" << buffers[i].first.seq_num 
+    //                 << " (LFR=" << LFR << ")" << endl;
+    //         }
+    //         cout << "Window State ----------------------" << endl;
             
-            if(buffers[0].first.seq_num == LFR) {
-                seq_num_ack = buffers[buffers.size() - 1].first.seq_num;
-                LFR = seq_num_ack;
-                LAF = LFR + RWS;
-                    cout << "\nWindow Updated:" << endl;
-    cout << "New LFR: " << LFR << endl;
-    cout << "New LAF: " << LAF << endl;
-    cout << "New seq_num_ack: " << seq_num_ack << endl;
-    cout << "-------------------" << endl;
+    //         if(buffers[0].first.seq_num == LFR) {
+    //             seq_num_ack = buffers[buffers.size() - 1].first.seq_num;
+    //             LFR = seq_num_ack;
+    //             LAF = LFR + RWS;
+    //                 cout << "\nWindow Updated:" << endl;
+    // cout << "New LFR: " << LFR << endl;
+    // cout << "New LAF: " << LAF << endl;
+    // cout << "New seq_num_ack: " << seq_num_ack << endl;
+    // cout << "-------------------" << endl;
 
-                 for (const auto& segment : buffers) {
-                    // memcpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
-                    // *((uint8_t*)receive_buffer + received_buffer_size) = *((uint8_t*)buffers[i].c_str() + sizeof(Segment));
-                    // memcpy((uint8_t*)receive_buffer + received_buffer_size, (uint8_t*)buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
-                    // cout << "copying" << endl;
-                    // for(uint32_t i = 0; i < 100; i++) {
-                    //     cout << buffers[i + sizeof(Segment)] << endl;
-                    // }
-                    memcpy((uint8_t*)receive_buffer + received_buffer_size, segment.second.data(), segment.second.size());
+    //              for (const auto& segment : buffers) {
+    //                 // memcpy((uint8_t*)receive_buffer + received_buffer_size, buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+    //                 // *((uint8_t*)receive_buffer + received_buffer_size) = *((uint8_t*)buffers[i].c_str() + sizeof(Segment));
+    //                 // memcpy((uint8_t*)receive_buffer + received_buffer_size, (uint8_t*)buffers[i].c_str() + sizeof(Segment), recv_size - sizeof(Segment));
+    //                 // cout << "copying" << endl;
+    //                 // for(uint32_t i = 0; i < 100; i++) {
+    //                 //     cout << buffers[i + sizeof(Segment)] << endl;
+    //                 // }
+    //                 memcpy((uint8_t*)receive_buffer + received_buffer_size, segment.second.data(), segment.second.size());
 
-                    Segment ack_segment = ack(initial_ack_num + received_buffer_size);
-                    received_buffer_size += segment.second.size();
-                    uint32_t data_index = (ack_segment.ack_num - initial_ack_num) / PAYLOAD_SIZE;
-                    cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
-                    sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
-                }
-            }
-            buffers.clear();
-        }
-    }
+    //                 Segment ack_segment = ack(initial_ack_num + received_buffer_size);
+    //                 received_buffer_size += segment.second.size();
+    //                 uint32_t data_index = (ack_segment.ack_num - initial_ack_num) / PAYLOAD_SIZE;
+    //                 cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+    //                 sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(Segment));
+    //             }
+    //         }
+    //         buffers.clear();
+    //     }
+    // }
 
-    cout << "final result" << endl;
-    for(uint32_t i = 0; i < received_buffer_size; i++) {
-        cout << ((char*)receive_buffer)[i];
-    }
-    cout << endl;
+    // cout << "final result" << endl;
+    // for(uint32_t i = 0; i < received_buffer_size; i++) {
+    //     cout << ((char*)receive_buffer)[i];
+    // }
+    // cout << endl;
 
-    segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
-    fin_recv(addr, len);
+    // segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
+    // fin_recv(addr, len);
 
     return received_buffer_size;
 }
 
 void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
+    this->status = TCPStatusEnum::FIN_WAIT_1;
     cout << YEL << "[i] " << getFormattedStatus() << " [Closing] Received FIN request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
     cout << YEL << "[i] " << getFormattedStatus() << " [Closing] Sending FIN-ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;

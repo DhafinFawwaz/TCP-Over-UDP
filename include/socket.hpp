@@ -24,7 +24,8 @@ enum TCPStatusEnum
     CLOSING = 7, // - represents waiting for a connection termination request acknowledgment from the remote TCP.
     LAST_ACK = 8, // - represents waiting for an acknowledgment of the connection termination request previously sent to the remote TCP (which includes an acknowledgment of its connection termination request).
     TIME_WAIT = 9, // - represents waiting for enough time to pass to be sure the remote TCP received the acknowledgment of its connection termination request.
-    CLOSED = 10 // - represents no connection state at all, it is fictional because it represents the state when there is no TCB, and therefore, no connection
+    CLOSED = 10, // - represents no connection state at all, it is fictional because it represents the state when there is no TCB, and therefore, no connection
+    FAILED = 11,
 };
 
 

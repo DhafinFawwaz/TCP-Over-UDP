@@ -4,6 +4,7 @@
 #include <segment.hpp>
 #include <vector>
 #include <deque>
+#include <map>
 using namespace std;
 
 class SegmentHandler
@@ -19,9 +20,11 @@ private:
 
 public:
     vector<Segment> segmentBuffer;
+    map<uint32_t, Segment> segmentMap;
     ~SegmentHandler();
 
     void generateSegments(uint16_t sourcePort, uint16_t destPort);
+    void generateSegmentsMap(uint16_t sourcePort, uint16_t destPort);
     uint32_t generateInitialSeqNum();
     void setDataStream(uint8_t *dataStream, uint32_t dataSize);
     uint8_t getWindowSize();
