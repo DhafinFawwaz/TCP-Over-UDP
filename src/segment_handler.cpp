@@ -13,12 +13,60 @@ SegmentHandler::~SegmentHandler() {
             segment.payload = nullptr; 
         }
     }
+    for(auto i : segmentMap){
+        if(i.second.payload){
+            delete[] i.second.payload;
+            i.second.payload = nullptr;
+        }
+    }
 }
 
 uint32_t SegmentHandler::generateInitialSeqNum(){
     return rand() % 1000;
 }
 void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort){
+    if (dataSize == 0 || dataStream == nullptr) {
+        return;
+    }
+
+    uint32_t segmentCount = (dataSize + PAYLOAD_SIZE - 1) / PAYLOAD_SIZE;
+    uint32_t remainingData = dataSize;
+    uint32_t currentSeqNum = this->currentSeqNum;
+
+    segmentMap.clear();
+
+    uint16_t currentIndex = 0;
+    uint32_t seqNumBefore;
+    for(uint16_t i = 0; i < segmentCount; i++){
+        uint32_t seqnum;
+        uint16_t payloadSize = remainingData > PAYLOAD_SIZE ? PAYLOAD_SIZE : remainingData;
+        remainingData -= payloadSize;
+        if(i==0){
+            seqnum = currentSeqNum;
+        }else{
+            seqnum = seqNumBefore + payloadSize;
+        }
+
+        Segment newSegment = {0};
+        seqNumBefore = newSegment.seq_num;
+        newSegment.sourcePort = sourcePort;
+        newSegment.destPort = destPort;
+        newSegment.seq_num = seqnum;
+        newSegment.payload = new uint8_t[payloadSize];
+        
+        if (currentIndex + payloadSize <= dataSize) {
+            memcpy(newSegment.payload, dataStream + currentIndex, payloadSize);
+        } else {
+            memcpy(newSegment.payload, dataStream + currentIndex, dataSize - currentIndex);
+        }
+        newSegment.payload_len = payloadSize;
+        newSegment.options = nullptr;
+        newSegment.window = windowSize;
+        newSegment.checksum = calculateChecksum(newSegment);
+        newSegment.data_offset = 20;
+        segmentMap[newSegment.seq_num] = newSegment;
+        currentIndex += PAYLOAD_SIZE;
+    }
 }
 
 void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){
