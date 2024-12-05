@@ -22,11 +22,12 @@ public:
     vector<Segment> segmentBuffer;
     map<uint32_t, Segment> segmentMap;
     ~SegmentHandler();
+    SegmentHandler();
 
     void generateSegments(uint16_t sourcePort, uint16_t destPort);
     void generateSegmentsMap(uint16_t sourcePort, uint16_t destPort);
     uint32_t generateInitialSeqNum();
-    void setDataStream(uint8_t *dataStream, uint32_t dataSize);
+    void setDataStream(void *dataStream, uint32_t dataSize);
     uint8_t getWindowSize();
     void setWindowSize(uint8_t windowSize);
     uint8_t advanceWindow(deque<Segment> &subSegments);

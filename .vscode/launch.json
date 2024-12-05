@@ -8,7 +8,9 @@
             "program": "${workspaceFolder}/node",
             "args": [
                 "localhost",
-                "3000"
+                "3000",
+                "<",
+                "test/server-input.txt"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

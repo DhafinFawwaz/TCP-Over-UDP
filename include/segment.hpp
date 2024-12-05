@@ -3,7 +3,8 @@
 
 #include <cstdint>
 #include <cmath>
-
+#include <vector>
+using namespace std;
 
 struct Segment
 {
@@ -15,31 +16,30 @@ struct Segment
 
     struct
     {
-        unsigned int data_offset : 4;
-        unsigned int reserved : 4;
-    };
+        uint8_t  data_offset : 4;
+        uint8_t  reserved : 4;
+    } __attribute__((packed));
 
     struct Flags
     {
-        unsigned int cwr : 1;
-        unsigned int ece : 1;
-        unsigned int urg : 1;
-        unsigned int ack : 1;
-        unsigned int psh : 1;
-        unsigned int pst : 1;
-        unsigned int syn : 1;
-        unsigned int fin : 1;
-    } flags;
+        uint8_t cwr : 1;
+        uint8_t ece : 1;
+        uint8_t urg : 1;
+        uint8_t ack : 1;
+        uint8_t psh : 1;
+        uint8_t pst : 1;
+        uint8_t syn : 1;
+        uint8_t fin : 1;
+    } __attribute__((packed)) flags;
 
     uint16_t checksum;
     uint16_t urg_point;
 
     uint16_t window;
     
-    uint8_t *options;  
+    vector<char> options;  
 
-    uint8_t *payload;
-    uint16_t payload_len; 
+    vector<char> payload;
 } __attribute__((packed));
 
 const uint8_t FIN_FLAG = 0b00000001;
@@ -72,6 +72,8 @@ Segment fin();
  * Generate Segment that contain FIN-ACK packet
  */
 Segment finAck();
+
+uint16_t calculateSum(Segment &segment);
 
 // update return type as needed
 uint16_t calculateChecksum(Segment segment);
