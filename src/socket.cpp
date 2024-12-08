@@ -124,6 +124,10 @@ void TCPSocket::listen() {
     int32_t sync_buffer_size;
     while (true) {
         sync_buffer_size = recvAny(&syn_segment, HEADER_ONLY_SIZE, &addr, &len);
+        if(!isValidChecksum(syn_segment)) {
+            cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            continue;
+        }
         if(sync_buffer_size >= 0) break; // sync_buffer_size < 0 just means timeout, retry
     }
     
@@ -161,7 +165,8 @@ void TCPSocket::listen() {
 
 
 uint32_t TCPSocket::calculateSegmentIndex(uint32_t seq_num, uint32_t initial_seq_num) {
-    return ceil((seq_num - initial_seq_num + 1) / static_cast<double>(PAYLOAD_SIZE));
+    // return ceil((seq_num - initial_seq_num + 1) / static_cast<double>(PAYLOAD_SIZE)) - 1;
+    return (seq_num - initial_seq_num + PAYLOAD_SIZE - 1) / PAYLOAD_SIZE + 1;
 }
 
 // Handshake
@@ -262,6 +267,8 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 
         Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
+        // [~] [Established] Waiting for segments to be ACKed
+        cout << YEL << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be ACKed" << COLOR_RESET << endl;
         while(true) {
             auto recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
             // cout << "recv_size: " << recv_size << endl;
@@ -288,7 +295,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
                 LAR = max(LAR, ack_segment.ack_num);
 
                 uint32_t data_index = calculateSegmentIndex(ack_segment.ack_num, initial_seq_num);
-                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index << "] [A=" << ack_segment.ack_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index-1 << "] [A=" << ack_segment.ack_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                 
                 // cout << "LFS: " << LFS << endl;
                 // cout << "LAR: " << LAR << endl;
@@ -382,7 +389,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
             // cout<< "checksum:"<<recv_segment.checksum << endl;
             // cout<< "checksum dfdfd:"<<calculateSum(recv_segment) << endl;
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
-            cout << RED << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Receive Corrupted" << COLOR_RESET << endl;
+            cout << RED << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid checksum. Received corrupted packet" << COLOR_RESET << endl;
             // must remove the element
             continue; // discard
         }
@@ -399,7 +406,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
                 uint32_t data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
                 Segment ack_segment = ack(seq_num_ack);
                 sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
-                cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << seq_num_ack << "] Resent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+                cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Resent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                 continue;
             }
             continue; // discard
@@ -451,7 +458,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
         
         data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
-        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << seq_num_ack << "] Sent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Sent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     }
     if(this->status == TCPStatusEnum::FAILED) {
         cout << RED << "[-] " << getFormattedStatus() << " [Failed]" << COLOR_RESET << endl;
