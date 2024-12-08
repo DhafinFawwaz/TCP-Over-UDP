@@ -215,7 +215,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
         cout << "LFS: " << LFS << endl;
         for(auto& [seq_num, segment] : segment_handler.segmentMap) {
             if(seq_num < LAR) continue;
-            if(seq_num >= LFS) break;
+            if(seq_num > LFS) break;
             anything_sent = true;
             
             // char payload[sizeof(Segment) + segment.payload_len];
@@ -319,6 +319,17 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
     
     segment_handler.setInitialSeqNum(LFS); // so that the next request will have a new seq_num
     fin_send(ip, port);
+
+    // print last segment
+    cout << "content" << endl;
+    for(auto& p : segment_handler.segmentMap) {
+        cout << p.second.seq_num << " =================================================" << endl;
+        for(auto& q : p.second.payload) {
+            cout << q;
+        }
+        cout << endl;
+    }
+    cout << endl;
 
     // segment_handler.segmentMap
 
@@ -587,7 +598,26 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     for(auto& [seq_num, segment] : buffers) {
         memcpy(receive_buffer + current, segment.payload.data(), segment.payload.size());
         current += segment.payload.size();
+        cout << "current: " << current << endl;
+        for(int i = 0; i < 20; i++) {
+            cout << segment.payload[i];
+        }
+        cout << endl;
     }
+    // cout << "last" << endl;
+    // for(auto p : prev(buffers.end())->second.payload) {
+    //     cout << p;
+    // }
+    // cout << endl;
+    cout << "content" << endl;
+    for(auto& p : buffers) {
+        cout << p.second.seq_num << " =================================================" << endl;
+        for(auto& q : p.second.payload) {
+            cout << q;
+        }
+        cout << endl;
+    }
+    cout << endl;
 
     fin_recv(addr, len);
     return current;
