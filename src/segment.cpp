@@ -74,16 +74,16 @@ uint16_t calculateSum(Segment &segment){
     }
     
     cout << 6 << endl;
-    // for(uint32_t i = 0; i < segment.payload.size(); i+=2){
-    //     // cout << "i: " << i << endl;
-    //     temp = 0;
-    //     temp |= (segment.payload.at(i)<<8);
-    //     if (i < segment.options.size()-1){
-    //         temp |= segment.payload.at(i+1);
-    //     }
-    //     new_sum ^= temp;
-    // }
-    // cout << 7 << endl;
+    for(uint32_t i = 0; i < segment.payload.size(); i+=2){
+        // cout << "i: " << i << endl;
+        temp = 0;
+        temp |= (segment.payload.at(i)<<8);
+        if (i < segment.payload.size()-1){
+            temp |= segment.payload.at(i+1);
+        }
+        new_sum ^= temp;
+    }
+    cout << 7 << endl;
     return new_sum;
 }
 

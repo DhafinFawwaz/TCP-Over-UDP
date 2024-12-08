@@ -273,7 +273,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
             cout << "LFS: " << LFS << endl;
             cout << "LAR: " << LAR << endl;
             cout << "if(!isValidChecksum(ack_segment))" << endl;
-            // if(!isValidChecksum(ack_segment)) continue;
+            if(!isValidChecksum(ack_segment)) continue;
 
 
             cout << "ack: " << ack_segment.ack_num << endl;
