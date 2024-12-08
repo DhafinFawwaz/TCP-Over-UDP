@@ -399,13 +399,24 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
     this->status = TCPStatusEnum::FIN_WAIT_1;
 
     Segment fin_ack_segment; sockaddr_in addr; socklen_t len = sizeof(addr);
+
+    auto send_time = high_resolution_clock::now();
+    chrono::seconds timeout(5);
     while (true) {
         auto recv_size = recvAny(&fin_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+        if(recv_size < 0) {
+            if(high_resolution_clock::now() - send_time > timeout) {
+                this->status = TCPStatusEnum::FAILED;
+                cout << RED << "[i] " << getFormattedStatus() << " [Established] Waiting for Fin Ack timeout. Aborting" << COLOR_RESET << endl;
+                return;
+            } else continue;
+        }
+
         if(!isValidChecksum(fin_ack_segment)) {
             cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
         }
-        if (recv_size > 0 && extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
+        if (extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
             cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
             this->status = TCPStatusEnum::CLOSING;
             break;
@@ -448,7 +459,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
     while (true) {
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
-        if(recv_size == -1) {
+        if(recv_size < 0) {
             if(high_resolution_clock::now() - send_time > timeout) {
                 this->status = TCPStatusEnum::FAILED;
                 break;
@@ -584,8 +595,19 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
     sendAny(this->connected_ip.c_str(), this->connected_port, &fin_ack_segment, HEADER_ONLY_SIZE);
 
     Segment ack_segment;
+
+    auto send_time = high_resolution_clock::now();
+    chrono::seconds timeout(5);
     while(true) {
         int recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, addr, len);
+        if(recv_size < 0) {
+            if(high_resolution_clock::now() - send_time > timeout) {
+                this->status = TCPStatusEnum::FAILED;
+                cout << RED << "[i] " << getFormattedStatus() << " [Established] Waiting for Ack timeout. Aborting" << COLOR_RESET << endl;
+                return;
+            } else continue;
+        }
+
         if(!isValidChecksum(ack_segment)) {
             cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
