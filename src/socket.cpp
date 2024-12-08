@@ -123,6 +123,7 @@ void TCPSocket::listen() {
     int32_t sync_buffer_size;
     while (true) {
         sync_buffer_size = recvAny(&syn_segment, HEADER_ONLY_SIZE, &addr, &len);
+        if(errno == EAGAIN || errno == EWOULDBLOCK) continue; // no request received. just continue
         if(!isValidChecksum(syn_segment)) {
             cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
