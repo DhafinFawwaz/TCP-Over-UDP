@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string.h> // just for memcpy
 #include <chrono>
+#include <unordered_map>
 #include <deque>
 #include <algorithm>
 #include <map>
@@ -597,9 +598,9 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 }
 
 void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
-    this->status = TCPStatusEnum::FIN_WAIT_1;
     cout << YEL << "[i] " << getFormattedStatus() << " Received FIN request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
+    this->status = TCPStatusEnum::FIN_WAIT_1;
     cout << BLU << "[i] " << getFormattedStatus() << " Sending FIN-ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     Segment fin_ack_segment = finAck();
     sendAny(this->connected_ip.c_str(), this->connected_port, &fin_ack_segment, HEADER_ONLY_SIZE);
@@ -623,6 +624,7 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
             continue;
         }
         if (extract_flags(ack_segment.flags) == ACK_FLAG) {
+            this->status = TCPStatusEnum::TIME_WAIT;
             cout << YEL << "[+] " << getFormattedStatus() << " Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
             break;
         } else {
