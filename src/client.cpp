@@ -13,6 +13,10 @@ void Client::setServerTarget(string server_ip, int server_port) {
 
 void Client::run() {
     this->connection.connect(this->server_ip, this->server_port);
+    if(this->connection.status != TCPStatusEnum::ESTABLISHED) {
+        cout << RED << "[-] Connecting to server failed" << COLOR_RESET << endl;
+        return;
+    }
     uint32_t BUFFER_SIZE = DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE*100;
     uint8_t buffer[BUFFER_SIZE]; sockaddr_in addr; socklen_t len = sizeof(addr);
     int32_t recv_size = this->connection.recv(buffer, BUFFER_SIZE, &addr, &len);

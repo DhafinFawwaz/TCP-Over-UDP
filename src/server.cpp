@@ -20,11 +20,10 @@ void Server::SetResponseBuffer(vector<char>& buffer) {
 
 void Server::run() {
     try {
-        this->connection.listen();
-        this->connection.send(this->connection.getConnectedIP().c_str(), 
-                              this->connection.getConnectedPort(), 
-                              (char*)this->response_buffer.data(), 
-                              this->response_buffer.size());
+        while(true) {
+            this->connection.listen();
+            this->connection.send(this->connection.getConnectedIP().c_str(), this->connection.getConnectedPort(), (char*)this->response_buffer.data(), this->response_buffer.size());
+        }
     } catch (const std::exception& e) {
         std::cerr << "Error running server: " << e.what() << std::endl;
     }

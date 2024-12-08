@@ -167,7 +167,7 @@ void TCPSocket::listen() {
                     continue;
                 }
                 if(ack_buffer_size < 0) {
-                    cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case is timeout
+                    cout << RED << "[-] " << getFormattedStatus() << " [Handshake] No ack from receiver, retrying" << COLOR_RESET << endl; // example case is timeout
                     retry = true;
                     break;
                 }
@@ -210,6 +210,9 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
     bool retry = true;
     sockaddr_in addr; socklen_t len = sizeof(addr);
     Segment syn_segment, syn_ack_segment, ack_segment;
+
+    uint32_t retry_count = 0;
+    uint32_t max_retry_count = 4;
     while(retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         this->status = TCPStatusEnum::SYN_SENT;
@@ -225,7 +228,6 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
             if(sync_ack_buffer_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 if(high_resolution_clock::now() - send_time_syn_ack > timeout_syn_ack) {
                     this->status = TCPStatusEnum::SYN_SENT;
-                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout" << COLOR_RESET << endl;
                     break;
                 } else continue;
             }
@@ -239,7 +241,16 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
             retry = false;
             if(extract_flags(syn_ack_segment.flags) == SYN_ACK_FLAG && syn_ack_segment.seq_num == syn_segment.seq_num + 1) break;
         }
-        if(retry) continue;
+        if(retry) {
+            retry_count++;
+            if(retry_count >= max_retry_count) {
+                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Retries exceeded limit. Aborting" << COLOR_RESET << endl;
+                return;
+            } else {
+                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Timeout, retrying" << COLOR_RESET << endl;
+                continue;
+            }
+        }
 
         cout << YEL << "[+] " << getFormattedStatus() << " [Handshake] [S=" << syn_ack_segment.seq_num << "] [A=" << syn_ack_segment.ack_num << "] Received SYN-ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
@@ -256,6 +267,10 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
 
 // Sliding window with Go-Back-N
 void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
+    if(this->status != TCPStatusEnum::ESTABLISHED) {
+        cout << RED << "[-] " << getFormattedStatus() << " [Established] Connection not established" << COLOR_RESET << endl;
+        return;
+    }
     cout << MAG << "[i] " << getFormattedStatus() << " Sending input to " << ip << ":" << port << COLOR_RESET << endl;
     // for(uint32_t i = 0; i < dataSize; i++) {
     //     cout << dataStream[i];
@@ -276,6 +291,8 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 
     auto send_time = high_resolution_clock::now();  
     chrono::seconds timeout(5);
+    uint32_t resend_latest_ack_count = 0;
+    uint32_t max_resend_latest_ack_count = 4;
     while(true) {
         // cout << "======================" << endl;
         // sleep(1);
@@ -291,9 +308,9 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
             
             // char payload[sizeof(Segment) + segment.payload_len];
             char* payload = new char[segment.data_offset*4 + segment.payload.size()];
-            memcpy(payload, &segment, 20);
+            memcpy(payload, &segment, HEADER_ONLY_SIZE);
             // memcpy(payload+sizeof(Segment)-16, segment.options, 8);
-            memcpy(payload+20, segment.options.data(), segment.options.size());
+            memcpy(payload+HEADER_ONLY_SIZE, segment.options.data(), segment.options.size());
             memcpy(payload+segment.data_offset*4, segment.payload.data(), segment.payload.size());
             // cout << "sending: " << segment.payload.size() << endl;
             sendAny(ip, port, payload, segment.data_offset*4 + segment.payload.size());
@@ -307,8 +324,25 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
         sockaddr_in addr; socklen_t len = sizeof(addr);
         // [~] [Established] Waiting for segments to be ACKed
         cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be ACKed" << COLOR_RESET << endl;
+
+        auto recv_time = high_resolution_clock::now();
+        chrono::seconds timeout_recv(5);
         while(true) {
             auto recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+            if(recv_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                if(high_resolution_clock::now() - recv_time > timeout_recv) {
+                    this->status = TCPStatusEnum::SYN_SENT;
+                    resend_latest_ack_count++;
+                    if(resend_latest_ack_count >= max_resend_latest_ack_count) {
+                        cout << RED << "[i] " << getFormattedStatus() << " [Established] Resending from latest acked segment has been done too many times but no response. Aborting." << COLOR_RESET << endl;
+                        return;
+                    } else {
+                        cout << RED << resend_latest_ack_count << " " << "[i] " << getFormattedStatus() << " [Established] Timeout waiting for acked segments. Resending from latest acked segment." << COLOR_RESET << endl;
+                        break;
+                    }
+                } else continue;
+            }
+
             if(!isValidChecksum(ack_segment)) {
                 cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
                 continue;
@@ -332,6 +366,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 
             // cout << "ack: " << ack_segment.ack_num << endl;
             if(extract_flags(ack_segment.flags) == ACK_FLAG) {
+                resend_latest_ack_count = 0;
                 // while(LFS < SWS - LAR) LFS += PAYLOAD_SIZE;
                 LFS = min(prev(segment_handler.segmentMap.end())->second.seq_num, LFS + ack_segment.ack_num - LAR);
                 LAR = max(LAR, ack_segment.ack_num);
@@ -389,6 +424,10 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
 
 // Sliding window with Go-Back-N
 int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
+    if(this->status != TCPStatusEnum::ESTABLISHED) {
+        cout << RED << "[-] " << getFormattedStatus() << " [Established] Connection not established" << COLOR_RESET << endl;
+        return -1;
+    }
     cout << MAG << "[i] " << getFormattedStatus() << " Ready to receive input from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     
     // TODO: find out how much should this value be
@@ -407,6 +446,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
     cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be sent" << COLOR_RESET << endl;
     while (true) {
+        // sleep(1);
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
         
         // cout << "======================" << endl;
