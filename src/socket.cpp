@@ -271,8 +271,10 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
                     break; // dont forget to change to break
                 } else break;  // dont forget to change to continue
             }
+            cout << "LFS: " << LFS << endl;
+            cout << "LAR: " << LAR << endl;
             cout << "if(!isValidChecksum(ack_segment))" << endl;
-            if(!isValidChecksum(ack_segment)) continue;
+            // if(!isValidChecksum(ack_segment)) continue;
 
 
             cout << "ack: " << ack_segment.ack_num << endl;
@@ -450,6 +452,11 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         Segment recv_segment;
         memcpy(&recv_segment, payload, HEADER_ONLY_SIZE);
+        if(extract_flags(recv_segment.flags) == FIN_FLAG) {
+            break;
+        }
+        cout << "not fin" << endl;
+        
         cout << +recv_segment.data_offset*4 << endl;
         cout << +HEADER_ONLY_SIZE << endl;
         cout << "options size: " << (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE)  << endl;
@@ -484,12 +491,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         }
         cout << "in range" << endl;
 
-        if(extract_flags(recv_segment.flags) == FIN_FLAG) {
-            break;
-        }
-
-
-        cout << "not fin" << endl;
+        
 
 
         buffers[recv_segment.seq_num] = recv_segment;
