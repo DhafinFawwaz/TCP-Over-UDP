@@ -8,7 +8,7 @@ using namespace std;
 #define PAYLOAD_SIZE 1460
 
 SegmentHandler::SegmentHandler(){
-    this->windowSize = 1;
+    this->windowSize = 4;
     this->currentSeqNum = 0;
     this->currentAckNum = 0;
     this->dataStream = nullptr;
@@ -31,6 +31,9 @@ void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort)
     cout << 0 << endl;
 
     uint32_t segmentCount = (dataSize + PAYLOAD_SIZE - 1) / PAYLOAD_SIZE;
+    cout << "dataSize: " << dataSize << endl;
+    cout << "PAYLOAD_SIZE: " << PAYLOAD_SIZE << endl;
+    cout << "segmentCount: " << segmentCount << endl;
     uint32_t remainingData = dataSize;
     uint32_t currentSeqNum = this->currentSeqNum;
     cout << 1 << endl;
@@ -54,37 +57,25 @@ void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort)
         newSegment.sourcePort = sourcePort;
         newSegment.destPort = destPort;
         
-
-        // if (currentIndex + payloadSize <= dataSize) {
-        //     // uint32_t* from = (uint32_t*)dataStream + currentIndex;
-        //     // uint32_t* to = (uint32_t*)dataStream + currentIndex + payloadSize;
-        //     // vector<char> v(reinterpret_cast<char*>(from), reinterpret_cast<char*>(to));
-        //     // newSegment.payload = v;
-            
-        // } else {
-        //     uint32_t* from = (uint32_t*)dataStream + currentIndex;
-        //     uint32_t* to = (uint32_t*)dataStream + dataSize - currentIndex;
-        //     vector<char> v(reinterpret_cast<char*>(from), reinterpret_cast<char*>(to));
-        //     newSegment.payload = v;
-        // }
+        cout << "copying payload" << endl;
+        size_t bytesToCopy;
         if (currentIndex + payloadSize <= dataSize) {
-            vector<char> v;
-            for (uint16_t i = 0; i < payloadSize; i++) {
-                v.push_back((reinterpret_cast<char*>(dataStream)[currentIndex + i]));
-            }
-            newSegment.payload = v;
+            bytesToCopy = payloadSize;
         } else {
-            vector<char> v;
-            for (uint16_t i = 0; currentIndex + i < dataSize; i++) {
-                v.push_back((reinterpret_cast<char*>(dataStream)[currentIndex + i]));
-            }
-            newSegment.payload = v;
+            bytesToCopy = dataSize - currentIndex;
         }
+        vector<char> v(reinterpret_cast<char*>(dataStream) + currentIndex, reinterpret_cast<char*>(dataStream) + currentIndex + bytesToCopy);
+        newSegment.payload = move(v);
+        cout << "copied payload" << endl;
 
 
+        cout << "copying options" << endl;
         newSegment.options = vector<char>(0);
+        cout << "copied options" << endl;
         newSegment.window = windowSize;
+        cout << "window size:" << +windowSize << endl;
         newSegment.data_offset = 5;
+        cout << "data offset:" << +newSegment.data_offset << endl;
         cout << "calculate checksum:" << calculateSum(newSegment) << endl;
         newSegment.checksum = calculateChecksum(newSegment);
         cout << "calculate checksum:" << calculateSum(newSegment) << endl;
@@ -92,11 +83,13 @@ void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort)
         cout << 11 << endl;
         cout << 12 << endl;
         // segmentMap[newSegment.seq_num] = newSegment;
-       segmentMap.insert(std::make_pair(static_cast<uint32_t>(newSegment.seq_num), newSegment));
+        segmentMap.insert(make_pair(static_cast<uint32_t>(newSegment.seq_num), newSegment));
         cout << 13 << endl;
         currentIndex += PAYLOAD_SIZE;
         cout << 14 << endl;
     }
+
+    cout << 3 << endl;
 }
 
 void SegmentHandler::generateSegments(uint16_t sourcePort, uint16_t destPort){

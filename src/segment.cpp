@@ -62,7 +62,7 @@ uint16_t calculateSum(Segment &segment){
     new_sum ^= uint16_t(0) + segment.data_offset<<12 + segment.reserved<<8 + segment.flags.cwr<<7 + segment.flags.ece<<6 + segment.flags.urg<<5 + segment.flags.ack<<4 + segment.flags.psh<<3 + segment.flags.pst<<2 + segment.flags.syn<<1 + segment.flags.fin;
     new_sum ^= segment.urg_point;
     new_sum ^= segment.window;
-    // cout << 5 << endl;
+    cout << 5 << endl;
     uint16_t temp;
     for(uint32_t i = 0; i < segment.options.size(); i+=2){
         temp = 0;
@@ -73,16 +73,16 @@ uint16_t calculateSum(Segment &segment){
         new_sum ^= temp;
     }
     
-    // cout << 6 << endl;
-    for(uint32_t i = 0; i < segment.payload.size(); i+=2){
-        // cout << "i: " << i << endl;
-        temp = 0;
-        temp |= (segment.payload.at(i)<<8);
-        if (i < segment.options.size()-1){
-            temp |= segment.payload.at(i+1);
-        }
-        new_sum ^= temp;
-    }
+    cout << 6 << endl;
+    // for(uint32_t i = 0; i < segment.payload.size(); i+=2){
+    //     // cout << "i: " << i << endl;
+    //     temp = 0;
+    //     temp |= (segment.payload.at(i)<<8);
+    //     if (i < segment.options.size()-1){
+    //         temp |= segment.payload.at(i+1);
+    //     }
+    //     new_sum ^= temp;
+    // }
     // cout << 7 << endl;
     return new_sum;
 }
@@ -106,7 +106,7 @@ Segment updateChecksum(Segment segment){
  * Check if a TCP Segment has a valid checksum
  */
 bool isValidChecksum(Segment segment){
-    // return true;
+    return true;
     uint16_t valid_sum = calculateSum(segment);
     valid_sum^=segment.checksum;
     cout<<"dsds"<<valid_sum<<endl;

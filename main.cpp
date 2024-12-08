@@ -12,14 +12,15 @@ void cinLowercase(string& str) {
     cin >> str; for(auto& c : str) c = tolower(c);
 }
 
-string readFileContent(string& filePath) {
-    ifstream ifs(filePath, std::ios::binary);
-    // ifstream ifs(filePath);
-    if(!ifs) {
-        cout << "[-] File not found" << endl;
-        exit(1);
+vector<char> readFileAsBinary(const string& filePath) {
+    ifstream inFile(filePath, std::ios::binary);
+    if (!inFile.is_open()) {
+        std::cerr << "Error: Could not open file " << filePath << '\n';
+        return {};
     }
-    return string(std::istreambuf_iterator<char>(ifs >> std::skipws), std::istreambuf_iterator<char>());
+    std::vector<char> buffer((istreambuf_iterator<char>(inFile)), istreambuf_iterator<char>());
+    inFile.close();
+    return buffer;
 }
 
 int main(int argc, char *argv[]) {
@@ -65,17 +66,18 @@ int main(int argc, char *argv[]) {
         if(sendingMode == "1" || sendingMode == "user input") {
             cout << "[+] Input mode chosen, please enter your input: ";
             string input; cin >> input;
+            vector<char> buffer(input.begin(), input.end());
 
             cout << "[+] User input has been successfully received." << endl;
 
             Server server(host, stoi(port));
-            server.SetResponseBuffer(input);
+            server.SetResponseBuffer(buffer);
             server.run();
         }
         else if(sendingMode == "2" || sendingMode == "file input") {
             cout << "[+] File mode chosen, please enter the file path: ";
             string filePath; cin >> filePath;
-            string buffer = readFileContent(filePath);
+            vector<char> buffer = readFileAsBinary(filePath);
 
             cout << "[+] File has been successfully read." << endl;
             cout << "[+] Size: " << buffer.size() << " bytes" << endl;

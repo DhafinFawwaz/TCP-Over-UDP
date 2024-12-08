@@ -21,10 +21,11 @@ void Client::run() {
 
 
 void Client::handleMessage(void* response, uint32_t size) {
-    ofstream ofs("test/response.txt", std::ios::binary);
-    // ofstream ofs("test/response.txt");
-    ofs.write(reinterpret_cast<char*>(response), size);
-    ofs.close();
+    cout << (char*)response << endl;
+    cout << "Size: " << size << endl;
+    ofstream outFile("test/response", ios::binary);
+    outFile.write(static_cast<const char*>(response), size);
+    outFile.close();
 }
 
 

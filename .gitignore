@@ -3,6 +3,7 @@ node
 peda*
 .gdb*
 input.txt
+test/response
 
 # Prerequisites
 *.d

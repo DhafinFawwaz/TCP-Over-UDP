@@ -5,10 +5,10 @@
 
 class Server : public Node
 {
-    string response_buffer;
+    vector<char> response_buffer;
 public:
     Server(string& host, int port);
-    void SetResponseBuffer(string buffer);
+    void SetResponseBuffer(vector<char>& buffer);
     void run() override;
     ~Server();
 };

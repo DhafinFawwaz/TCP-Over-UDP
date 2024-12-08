@@ -181,7 +181,6 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
     uint32_t initial_seq_num = segment_handler.getInitialSeqNum();
     uint32_t initial_ack_num = segment_handler.getInitialAckNum();
     uint32_t LAR = initial_seq_num; // Last Acknowledgment Received. -1 because if there's only 1 segment, initial_seq_num = last_seq_num.
-    segment_handler.setWindowSize(SWS);
     segment_handler.setDataStream(dataStream, dataSize);
     // segment_handler.generateSegments(this->port, port);
     cout << "generate segment" << endl;
@@ -208,7 +207,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
             memcpy(payload+segment.data_offset*4, segment.payload.data(), segment.payload.size());
             cout << "sending: " << segment.payload.size() << endl;
             sendAny(ip, port, payload, segment.data_offset*4 + segment.payload.size());
-            // delete[] payload;
+            delete[] payload;
             uint32_t data_index = ceil((seq_num - initial_seq_num) / PAYLOAD_SIZE);
             cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [S=" << segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
         }
@@ -456,7 +455,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
             break;
         }
         cout << "not fin" << endl;
-        
+
         cout << +recv_segment.data_offset*4 << endl;
         cout << +HEADER_ONLY_SIZE << endl;
         cout << "options size: " << (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE)  << endl;
@@ -551,6 +550,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     }
 
     fin_recv(addr, len);
+    return current;
 
 
     // vector<string> buffers;
