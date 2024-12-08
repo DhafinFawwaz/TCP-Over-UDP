@@ -226,7 +226,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
     while(retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         this->status = TCPStatusEnum::SYN_SENT;
-        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << YEL << "[i] " << getFormattedStatus() << " [S=" << initial_seq_num << "] Sending SYN request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
         syn_segment = syn(initial_seq_num);
         sendAny(this->connected_ip.c_str(), this->connected_port, &syn_segment, HEADER_ONLY_SIZE);
 
@@ -241,7 +241,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
             }
 
             if(sync_ack_buffer_size < 0) {
-                cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case it timeout
+                cout << RED << "[-] " << getFormattedStatus() << " Error, retrying" << COLOR_RESET << endl; // example case it timeout
                 // cout << errno << endl;
                 retry = true;
                 break;
@@ -252,18 +252,18 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
         if(retry) {
             retry_count++;
             if(retry_count >= max_retry_count) {
-                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Retries exceeded limit. Aborting" << COLOR_RESET << endl;
+                cout << RED << "[i] " << getFormattedStatus() << " Retries exceeded limit. Aborting" << COLOR_RESET << endl;
                 return;
             } else {
-                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Timeout, retrying" << COLOR_RESET << endl;
+                cout << RED << "[i] " << getFormattedStatus() << " Timeout, retrying" << COLOR_RESET << endl;
                 continue;
             }
         }
 
-        cout << YEL << "[+] " << getFormattedStatus() << " [Handshake] [S=" << syn_ack_segment.seq_num << "] [A=" << syn_ack_segment.ack_num << "] Received SYN-ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << YEL << "[+] " << getFormattedStatus() << " [S=" << syn_ack_segment.seq_num << "] [A=" << syn_ack_segment.ack_num << "] Received SYN-ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
         ack_segment = ack(syn_ack_segment.ack_num + 1);
-        cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << BLU << "[i] " << getFormattedStatus() << " [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
     }
 
@@ -277,7 +277,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
 // Sliding window with Go-Back-N
 void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
     if(this->status != TCPStatusEnum::ESTABLISHED) {
-        cout << RED << "[-] " << getFormattedStatus() << " [Established] Connection not established" << COLOR_RESET << endl;
+        cout << RED << "[-] " << getFormattedStatus() << " Connection not established" << COLOR_RESET << endl;
         return;
     }
     cout << MAG << "[i] " << getFormattedStatus() << " Sending input to " << ip << ":" << port << COLOR_RESET << endl;
@@ -325,14 +325,14 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
             sendAny(ip, port, payload, segment.data_offset*4 + segment.payload.size());
             delete[] payload;
             uint32_t data_index = calculateSegmentIndex(seq_num, initial_seq_num);
-            cout << BLU << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index << "] [S=" << segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
+            cout << BLU << "[i] " << getFormattedStatus() << " [Seg " << data_index << "] [S=" << segment.seq_num << "] Sent to " << this->connected_ip << ":" << this->connected_port << endl;
         }
         if(!anything_sent) break;
 
         Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
         // [~] [Established] Waiting for segments to be ACKed
-        cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be ACKed" << COLOR_RESET << endl;
+        cout << MAG << "[~] " << getFormattedStatus() << " Waiting for segments to be ACKed" << COLOR_RESET << endl;
 
         auto recv_time = high_resolution_clock::now();
         chrono::seconds timeout_recv(5);
@@ -343,24 +343,24 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
                     this->status = TCPStatusEnum::SYN_SENT;
                     resend_latest_ack_count++;
                     if(resend_latest_ack_count >= max_resend_latest_ack_count) {
-                        cout << RED << "[i] " << getFormattedStatus() << " [Established] Resending from latest acked segment has been done too many times but no response. Aborting." << COLOR_RESET << endl;
+                        cout << RED << "[i] " << getFormattedStatus() << " Resending from latest acked segment has been done too many times but no response. Aborting." << COLOR_RESET << endl;
                         return;
                     } else {
-                        cout << RED << resend_latest_ack_count << " " << "[i] " << getFormattedStatus() << " [Established] Timeout waiting for acked segments. Resending from latest acked segment." << COLOR_RESET << endl;
+                        cout << RED << resend_latest_ack_count << " " << "[i] " << getFormattedStatus() << " Timeout waiting for acked segments. Resending from latest acked segment." << COLOR_RESET << endl;
                         break;
                     }
                 } else continue;
             }
 
             if(!isValidChecksum(ack_segment)) {
-                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+                cout << RED << "[i] " << getFormattedStatus() << " Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
                 continue;
             }
             // cout << "recv_size: " << recv_size << endl;
             if(recv_size < 0) {
                 if(high_resolution_clock::now() - send_time > timeout) {
                     this->status = TCPStatusEnum::FAILED;
-                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout" << COLOR_RESET << endl;
+                    cout << RED << "[i] " << getFormattedStatus() << " Timeout" << COLOR_RESET << endl;
                     break; // dont forget to change to break
                 } else break;  // dont forget to change to continue
             }
@@ -368,7 +368,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
             // cout << "LAR: " << LAR << endl;
             // cout << "if(!isValidChecksum(ack_segment))" << endl;
             if(!isValidChecksum(ack_segment)) {
-                cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+                cout << RED << "[i] " << getFormattedStatus() << " Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
                 continue;
             }
 
@@ -381,7 +381,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
                 LAR = max(LAR, ack_segment.ack_num);
 
                 uint32_t data_index = calculateSegmentIndex(ack_segment.ack_num, initial_seq_num);
-                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index-1 << "] [A=" << ack_segment.ack_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+                cout << YEL << "[i] " << getFormattedStatus() << " [Seg " << data_index-1 << "] [A=" << ack_segment.ack_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                 
                 // cout << "LFS: " << LFS << endl;
                 // cout << "LAR: " << LAR << endl;
@@ -392,7 +392,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
     }
 
     if(this->status == TCPStatusEnum::FAILED) {
-        cout << RED << "[-] " << getFormattedStatus() << " [Failed]" << COLOR_RESET << endl;
+        cout << RED << "[-] " << getFormattedStatus() << COLOR_RESET << endl;
         return;
     }
     
@@ -405,7 +405,7 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
     
     Segment fin_segment = fin();
     sendAny(ip, port, &fin_segment, HEADER_ONLY_SIZE);
-    cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending FIN request to " << ip << ":" << port << COLOR_RESET << endl;
+    cout << BLU << "[i] " << getFormattedStatus() << " Sending FIN request to " << ip << ":" << port << COLOR_RESET << endl;
     this->status = TCPStatusEnum::FIN_WAIT_1;
 
     Segment fin_ack_segment; sockaddr_in addr; socklen_t len = sizeof(addr);
@@ -417,17 +417,17 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
         if(recv_size < 0) {
             if(high_resolution_clock::now() - send_time > timeout) {
                 this->status = TCPStatusEnum::FAILED;
-                cout << RED << "[i] " << getFormattedStatus() << " [Established] Waiting for Fin Ack timeout. Aborting" << COLOR_RESET << endl;
+                cout << RED << "[i] " << getFormattedStatus() << " Waiting for Fin Ack timeout. Aborting" << COLOR_RESET << endl;
                 return;
             } else continue;
         }
 
         if(!isValidChecksum(fin_ack_segment)) {
-            cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            cout << RED << "[i] " << getFormattedStatus() << " Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
         }
         if (extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
-            cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
+            cout << YEL << "[+] " << getFormattedStatus() << " Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
             this->status = TCPStatusEnum::CLOSING;
             break;
         }
@@ -436,7 +436,7 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
     Segment ack_segment = ack(fin_ack_segment.ack_num);
     sendAny(ip, port, &ack_segment, HEADER_ONLY_SIZE);
     this->status = TCPStatusEnum::TIME_WAIT;
-    cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending ACK request to " << ip << ":" << port << COLOR_RESET << endl;
+    cout << BLU << "[i] " << getFormattedStatus() << " Sending ACK request to " << ip << ":" << port << COLOR_RESET << endl;
 
     this->status = TCPStatusEnum::CLOSED;
     cout << GRN << "[i] " << getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
@@ -445,7 +445,7 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
 // Sliding window with Go-Back-N
 int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
     if(this->status != TCPStatusEnum::ESTABLISHED) {
-        cout << RED << "[-] " << getFormattedStatus() << " [Established] Connection not established" << COLOR_RESET << endl;
+        cout << RED << "[-] " << getFormattedStatus() << " Connection not established" << COLOR_RESET << endl;
         return -1;
     }
     cout << MAG << "[i] " << getFormattedStatus() << " Ready to receive input from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
@@ -464,7 +464,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     auto send_time = high_resolution_clock::now();
     chrono::seconds timeout(10);
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
-    cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be sent" << COLOR_RESET << endl;
+    cout << MAG << "[~] " << getFormattedStatus() << " Waiting for segments to be sent" << COLOR_RESET << endl;
 
 
     while (true) {
@@ -496,19 +496,19 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         
         if(options_size < 0 || options_size > DATA_OFFSET_MAX_SIZE) {
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
-            cout << RED << "[-] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid data offset" << COLOR_RESET << endl;
+            cout << RED << "[-] " << getFormattedStatus() << " [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid data offset" << COLOR_RESET << endl;
             continue;
         }
         if(payload_size < 0 || payload_size > PAYLOAD_SIZE) {
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
-            cout << RED << "[-] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid payload size" << COLOR_RESET << endl;
+            cout << RED << "[-] " << getFormattedStatus() << " [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid payload size" << COLOR_RESET << endl;
             continue;
         }
         recv_segment.options = vector<char>(payload + HEADER_ONLY_SIZE, payload + recv_segment.data_offset*4);
         recv_segment.payload = vector<char>(payload + recv_segment.data_offset*4, payload + recv_size);
 
         if(!isValidChecksum(recv_segment)) {
-            cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            cout << RED << "[i] " << getFormattedStatus() << " Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
         }
 
@@ -525,7 +525,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
                 uint32_t data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
                 Segment ack_segment = ack(seq_num_ack);
                 sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
-                cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Resent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+                cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Resent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                 continue;
             }
             continue; // discard
@@ -537,7 +537,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         buffers[recv_segment.seq_num] = recv_segment;
         uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
-        cout << YEL << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [S=" << recv_segment.seq_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << YEL << "[+] " << getFormattedStatus() << " [Seg=" << data_index << "] [S=" << recv_segment.seq_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
         // cout << "seq_num_ack: " << seq_num_ack << endl;
         // cout << "recv_segment.seq_num: " << recv_segment.seq_num << endl;
@@ -577,10 +577,10 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
         
         data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
-        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Sent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Sent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     }
     if(this->status == TCPStatusEnum::FAILED) {
-        cout << RED << "[-] " << getFormattedStatus() << " [Failed]" << COLOR_RESET << endl;
+        cout << RED << "[-] " << getFormattedStatus() << COLOR_RESET << endl;
         return -1;
     }
     
@@ -598,9 +598,9 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
 void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
     this->status = TCPStatusEnum::FIN_WAIT_1;
-    cout << YEL << "[i] " << getFormattedStatus() << " [Closing] Received FIN request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+    cout << YEL << "[i] " << getFormattedStatus() << " Received FIN request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
-    cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending FIN-ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+    cout << BLU << "[i] " << getFormattedStatus() << " Sending FIN-ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     Segment fin_ack_segment = finAck();
     sendAny(this->connected_ip.c_str(), this->connected_port, &fin_ack_segment, HEADER_ONLY_SIZE);
 
@@ -613,20 +613,20 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
         if(recv_size < 0) {
             if(high_resolution_clock::now() - send_time > timeout) {
                 this->status = TCPStatusEnum::FAILED;
-                cout << RED << "[i] " << getFormattedStatus() << " [Established] Waiting for Ack timeout. Aborting" << COLOR_RESET << endl;
+                cout << RED << "[i] " << getFormattedStatus() << " Waiting for Ack timeout. Aborting" << COLOR_RESET << endl;
                 return;
             } else continue;
         }
 
         if(!isValidChecksum(ack_segment)) {
-            cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            cout << RED << "[i] " << getFormattedStatus() << " Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
         }
         if (extract_flags(ack_segment.flags) == ACK_FLAG) {
-            cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+            cout << YEL << "[+] " << getFormattedStatus() << " Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
             break;
         } else {
-            cout << RED << "[-] " << getFormattedStatus() << " [Closing] Error, retrying" << COLOR_RESET << endl;
+            cout << RED << "[-] " << getFormattedStatus() << " Error, retrying" << COLOR_RESET << endl;
         }
     }
 
@@ -639,5 +639,24 @@ void TCPSocket::close() {
 }
 
 string TCPSocket::getFormattedStatus() {
-    return "[" + to_string(this->status) + "]";
+    static const std::unordered_map<TCPStatusEnum, std::string> statusMap = {
+        {TCPStatusEnum::LISTEN, "LISTEN"},
+        {TCPStatusEnum::SYN_SENT, "SYN_SENT"},
+        {TCPStatusEnum::SYN_RECEIVED, "SYN_RECEIVED"},
+        {TCPStatusEnum::ESTABLISHED, "ESTABLISHED"},
+        {TCPStatusEnum::FIN_WAIT_1, "FIN_WAIT_1"},
+        {TCPStatusEnum::FIN_WAIT_2, "FIN_WAIT_2"},
+        {TCPStatusEnum::CLOSE_WAIT, "CLOSE_WAIT"},
+        {TCPStatusEnum::CLOSING, "CLOSING"},
+        {TCPStatusEnum::LAST_ACK, "LAST_ACK"},
+        {TCPStatusEnum::TIME_WAIT, "TIME_WAIT"},
+        {TCPStatusEnum::CLOSED, "CLOSED"},
+        {TCPStatusEnum::FAILED, "FAILED"},
+    };
+
+    std::string statusString = "[";
+    statusString += std::to_string(this->status);
+    statusString += "] ";
+    statusString += "[" + statusMap.at(this->status) + "]";
+    return statusString;
 }
