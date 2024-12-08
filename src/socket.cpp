@@ -116,55 +116,78 @@ void TCPSocket::sendAny(const char* ip, int32_t port, void* dataStream, uint32_t
 void TCPSocket::listen() {
     this->status = TCPStatusEnum::LISTEN;
     initSocket();
-    cout << BLU << "[i] " << getFormattedStatus() << " Listening to the broadcast port for clients as " << this->ip << ":" << this->port << COLOR_RESET << endl;
-    
-    sockaddr_in addr; socklen_t len = sizeof(addr);
-    Segment syn_segment, syn_ack_segment, ack_segment;
-    int32_t sync_buffer_size;
-    while (true) {
-        sync_buffer_size = recvAny(&syn_segment, HEADER_ONLY_SIZE, &addr, &len);
-        if(errno == EAGAIN || errno == EWOULDBLOCK) continue; // no request received. just continue
-        if(!isValidChecksum(syn_segment)) {
-            cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
-            continue;
-        }
-        if(sync_buffer_size >= 0) break; // sync_buffer_size < 0 just means timeout, retry
-    }
-    
-    char* received_ip = inet_ntoa(addr.sin_addr);
-    this->status = TCPStatusEnum::SYN_RECEIVED;
-    cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << syn_segment.seq_num << "] Received SYN request from " << received_ip << ":" << addr.sin_port << endl << COLOR_RESET;
-
-    bool retry = true;
-    while (retry) {
-        uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
-        syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
-        cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
-        sendAny(received_ip, addr.sin_port, &syn_ack_segment, HEADER_ONLY_SIZE);
-
+    while(this->status != TCPStatusEnum::ESTABLISHED) {
+        cout << BLU << "[i] " << getFormattedStatus() << " Listening to the broadcast port for clients as " << this->ip << ":" << this->port << COLOR_RESET << endl;
+        
+        sockaddr_in addr; socklen_t len = sizeof(addr);
+        Segment syn_segment, syn_ack_segment, ack_segment;
+        int32_t sync_buffer_size;
         while (true) {
-            auto ack_buffer_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+            sync_buffer_size = recvAny(&syn_segment, HEADER_ONLY_SIZE, &addr, &len);
+            if(sync_buffer_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) continue; // no request received. just continue
             if(!isValidChecksum(syn_segment)) {
                 cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
                 continue;
             }
-            if(ack_buffer_size < 0) {
-                cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case is timeout
-                retry = true;
+            if(sync_buffer_size >= 0) break; // request received
+        }
+        
+        char* received_ip = inet_ntoa(addr.sin_addr);
+        this->status = TCPStatusEnum::SYN_RECEIVED;
+        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << syn_segment.seq_num << "] Received SYN request from " << received_ip << ":" << addr.sin_port << endl << COLOR_RESET;
+
+        auto send_time_syn = high_resolution_clock::now();
+        chrono::seconds timeout_syn(12); // timelimit to retry sending syn ack again
+        bool retry = true;
+        while (retry) {
+            if(high_resolution_clock::now() - send_time_syn > timeout_syn) {
+                this->status = TCPStatusEnum::LISTEN;
+                cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout" << COLOR_RESET << endl;
                 break;
             }
-            retry = false;
-            if(extract_flags(ack_segment.flags) == ACK_FLAG && ack_segment.ack_num == syn_ack_segment.ack_num + 1) break;   
+
+            uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
+            syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
+            cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+            sendAny(received_ip, addr.sin_port, &syn_ack_segment, HEADER_ONLY_SIZE);
+
+            auto send_time_syn_ack = high_resolution_clock::now();
+            chrono::seconds timeout_syn_ack(5); // time limit to receive ack
+            while (true) {
+                auto ack_buffer_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+                if(sync_buffer_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                    if(high_resolution_clock::now() - send_time_syn_ack > timeout_syn_ack) {
+                        this->status = TCPStatusEnum::LISTEN;
+                        cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout" << COLOR_RESET << endl;
+                        break;
+                    } else continue;
+                }
+                if(!isValidChecksum(syn_segment)) {
+                    cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+                    continue;
+                }
+                if(ack_buffer_size < 0) {
+                    cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case is timeout
+                    retry = true;
+                    break;
+                }
+                retry = false;
+                if(extract_flags(ack_segment.flags) == ACK_FLAG && ack_segment.ack_num == syn_ack_segment.ack_num + 1) {
+                    cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Received ACK request from " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+                    this->status = TCPStatusEnum::ESTABLISHED;
+                    break;  
+                } 
+            }
         }
+        if(this->status == TCPStatusEnum::LISTEN) continue;
+
+        cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
+        this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
+        this->segment_handler.setInitialAckNum(ack_segment.ack_num);
+
+        this->connected_ip = string(received_ip);
+        this->connected_port = addr.sin_port;
     }
-
-    cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Received ACK request from " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
-    cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
-    this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
-    this->segment_handler.setInitialAckNum(ack_segment.ack_num);
-
-    this->connected_ip = string(received_ip);
-    this->connected_port = addr.sin_port;
 }
 
 
@@ -195,8 +218,18 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
         sendAny(this->connected_ip.c_str(), this->connected_port, &syn_segment, HEADER_ONLY_SIZE);
         this->status = TCPStatusEnum::SYN_SENT;
 
+        auto send_time_syn_ack = high_resolution_clock::now();
+        chrono::seconds timeout_syn_ack(5); // time limit to receive syn ack
         while(true) {
             auto sync_ack_buffer_size = recvAny(&syn_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+            if(sync_ack_buffer_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+                if(high_resolution_clock::now() - send_time_syn_ack > timeout_syn_ack) {
+                    this->status = TCPStatusEnum::SYN_SENT;
+                    cout << RED << "[i] " << getFormattedStatus() << " [Established] Timeout" << COLOR_RESET << endl;
+                    break;
+                } else continue;
+            }
+
             if(sync_ack_buffer_size < 0) {
                 cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case it timeout
                 // cout << errno << endl;
