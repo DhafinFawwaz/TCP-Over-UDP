@@ -479,7 +479,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         
         // cout << "not fin" << endl;
 
-        uint32_t options_size = (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE);
+        uint32_t options_size = (recv_segment.data_offset*4) - (HEADER_ONLY_SIZE);
         uint32_t payload_size = recv_size - recv_segment.data_offset*4;
         // cout << "options_size: " << options_size << endl;
         // cout << "payload_size: " << payload_size << endl;
@@ -612,7 +612,7 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
             cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
         }
-        if (recv_size > 0 && extract_flags(ack_segment.flags) == ACK_FLAG) {
+        if (extract_flags(ack_segment.flags) == ACK_FLAG) {
             cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
             break;
         } else {
