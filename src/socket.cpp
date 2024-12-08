@@ -86,7 +86,7 @@ void TCPSocket::listen() {
     Segment syn_segment, syn_ack_segment, ack_segment;
     int32_t sync_buffer_size;
     while (true) {
-        sync_buffer_size = recvAny(&syn_segment, sizeof(syn_segment), &addr, &len);
+        sync_buffer_size = recvAny(&syn_segment, HEADER_ONLY_SIZE, &addr, &len);
         if(sync_buffer_size >= 0) break; // sync_buffer_size < 0 just means timeout, retry
     }
     
@@ -99,10 +99,10 @@ void TCPSocket::listen() {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         syn_ack_segment = synAck(syn_segment.seq_num + 1, initial_seq_num);
         cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [A=" << syn_ack_segment.ack_num << "] [S=" << syn_ack_segment.seq_num << "] Sending SYN-ACK request to " << received_ip << ":" << addr.sin_port << COLOR_RESET << endl;
-        sendAny(received_ip, addr.sin_port, &syn_ack_segment, sync_buffer_size);
+        sendAny(received_ip, addr.sin_port, &syn_ack_segment, HEADER_ONLY_SIZE);
 
         while (true) {
-            auto ack_buffer_size = recvAny(&ack_segment, sizeof(ack_segment), &addr, &len);
+            auto ack_buffer_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
             if(ack_buffer_size < 0) {
                 cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case is timeout
                 retry = true;
@@ -141,12 +141,13 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
         this->status = TCPStatusEnum::SYN_SENT;
         cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
         syn_segment = syn(initial_seq_num);
-        sendAny(this->connected_ip.c_str(), this->connected_port, &syn_segment, sizeof(syn_segment));
+        sendAny(this->connected_ip.c_str(), this->connected_port, &syn_segment, HEADER_ONLY_SIZE);
 
         while(true) {
-            auto sync_ack_buffer_size = recvAny(&syn_ack_segment, sizeof(syn_ack_segment), &addr, &len);
+            auto sync_ack_buffer_size = recvAny(&syn_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
             if(sync_ack_buffer_size < 0) {
                 cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case it timeout
+                // cout << errno << endl;
                 retry = true;
                 break;
             }
@@ -159,7 +160,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
 
         ack_segment = ack(syn_ack_segment.ack_num + 1);
         cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [A=" << ack_segment.ack_num << "] Sending ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
-        sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, sizeof(ack_segment));
+        sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
     }
     this->status = TCPStatusEnum::ESTABLISHED;
     cout << GRN << "[i] " << getFormattedStatus() << " [Established] Connection estabilished with "<< this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
@@ -261,8 +262,8 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
         Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
         while(true) {
-            auto recv_size = recvAny(&ack_segment, sizeof(ack_segment), &addr, &len);
-            cout << recv_size << endl;
+            auto recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+            cout << "recv_size: " << recv_size << endl;
             if(recv_size < 0) {
                 if(high_resolution_clock::now() - send_time > timeout) {
                     this->status = TCPStatusEnum::FAILED;
@@ -392,12 +393,12 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 void TCPSocket::fin_send(const char* ip, int32_t port) {
     
     Segment fin_segment = fin();
-    sendAny(ip, port, &fin_segment, sizeof(fin_segment));
+    sendAny(ip, port, &fin_segment, HEADER_ONLY_SIZE);
     cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending FIN request to " << ip << ":" << port << COLOR_RESET << endl;
 
     Segment fin_ack_segment; sockaddr_in addr; socklen_t len = sizeof(addr);
     while (true) {
-        auto recv_size = recvAny(&fin_ack_segment, sizeof(fin_ack_segment), &addr, &len);
+        auto recv_size = recvAny(&fin_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
         if (recv_size > 0 && extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
             cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
             break;
@@ -405,7 +406,7 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
     }
 
     Segment ack_segment = ack(fin_ack_segment.ack_num);
-    sendAny(ip, port, &ack_segment, sizeof(ack_segment));
+    sendAny(ip, port, &ack_segment, HEADER_ONLY_SIZE);
     cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending ACK request to " << ip << ":" << port << COLOR_RESET << endl;
 
     cout << GRN << "[i] " << getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
@@ -431,10 +432,11 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     map<uint32_t, Segment> buffers;
     auto send_time = high_resolution_clock::now();
     chrono::seconds timeout(10);
-    char payload[60 + PAYLOAD_SIZE];
+    char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
     while (true) {
-        int recv_size = recvAny(&payload, sizeof(payload), addr, len);
+        int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
         cout << "recv_size: " << recv_size << endl;
+        // cout << "errno: " << errno << endl;
         if(recv_size < 0) {
             if(high_resolution_clock::now() - send_time > timeout) {
                 this->status = TCPStatusEnum::FAILED;
@@ -447,8 +449,12 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         // cout << endl;
 
         Segment recv_segment;
-        memcpy(&recv_segment, payload, 20);
-        recv_segment.options = vector<char>(payload + 20, payload + recv_segment.data_offset*4);
+        memcpy(&recv_segment, payload, HEADER_ONLY_SIZE);
+        cout << +recv_segment.data_offset*4 << endl;
+        cout << +HEADER_ONLY_SIZE << endl;
+        cout << "options size: " << (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE)  << endl;
+        cout << "payload size: " << recv_size - recv_segment.data_offset*4 << endl;
+        recv_segment.options = vector<char>(payload + HEADER_ONLY_SIZE, payload + recv_segment.data_offset*4);
         recv_segment.payload = vector<char>(payload + recv_segment.data_offset*4, payload + recv_size);
         if(!isValidChecksum(recv_segment)) {
             // cout<< "checksum:"<<recv_segment.checksum << endl;
@@ -720,11 +726,11 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
 
     cout << YEL << "[i] " << getFormattedStatus() << " [Closing] Sending FIN-ACK request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     Segment fin_ack_segment = finAck();
-    sendAny(this->connected_ip.c_str(), this->connected_port, &fin_ack_segment, sizeof(fin_ack_segment));
+    sendAny(this->connected_ip.c_str(), this->connected_port, &fin_ack_segment, HEADER_ONLY_SIZE);
 
     Segment ack_segment;
     while(true) {
-        int recv_size = recvAny(&ack_segment, sizeof(ack_segment), addr, len);
+        int recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, addr, len);
         if (recv_size > 0 && extract_flags(ack_segment.flags) == ACK_FLAG) {
             cout << GRN << "[+] " << getFormattedStatus() << " [Closing] Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
             break;

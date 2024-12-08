@@ -48,6 +48,10 @@ const uint8_t ACK_FLAG = 0b00010000;
 const uint8_t SYN_ACK_FLAG = SYN_FLAG | ACK_FLAG;
 const uint8_t FIN_ACK_FLAG = FIN_FLAG | ACK_FLAG;
 
+const uint8_t HEADER_ONLY_SIZE = 20;
+const uint8_t DATA_OFFSET_MAX_SIZE = 60;
+const uint16_t BODY_ONLY_SIZE = 1460;
+
 /**
  * Generate Segment that contain SYN packet
  */

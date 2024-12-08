@@ -13,13 +13,8 @@ void Client::setServerTarget(string server_ip, int server_port) {
 
 void Client::run() {
     this->connection.connect(this->server_ip, this->server_port);
-    
-    uint32_t PAYLOAD_SIZE = 1460;
-    uint32_t SEGMENT_ONLY_SIZE = sizeof(Segment);
-    uint32_t MAX_SEGMENT_SIZE = PAYLOAD_SIZE + SEGMENT_ONLY_SIZE;
-    uint32_t BUFFER_SIZE = MAX_SEGMENT_SIZE*10;
-    
-    uint8_t buffer[BUFFER_SIZE]; sockaddr_in addr; socklen_t len;
+    uint32_t BUFFER_SIZE = DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE*100;
+    uint8_t buffer[BUFFER_SIZE]; sockaddr_in addr; socklen_t len = sizeof(addr);
     int32_t recv_size = this->connection.recv(buffer, BUFFER_SIZE, &addr, &len);
     handleMessage(buffer, recv_size);
 }
