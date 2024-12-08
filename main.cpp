@@ -5,6 +5,8 @@
 #include <fstream>
 #include <time.h>
 #include <segment.hpp>
+#include <portlock.hpp>
+#include <ansi_code.hpp>
 
 using namespace std;
 
@@ -29,7 +31,6 @@ vector<char> readFileAsBinary(const string& filePath) {
 }
 
 int main(int argc, char* argv[]) {
-    cout << sizeof(Segment) << endl;
     if (argc < 2 || argc > 3) {
         cout << "Usage: ./node [host] [port]" << endl;
         return 1;
@@ -55,7 +56,7 @@ int main(int argc, char* argv[]) {
 
     PortLock portLock(portNumber);
     if (!portLock.isLocked()) {
-        cout << "[-] Port " << port << " is already in use. Please use a different port." << endl;
+        cout << RED << "[-] Port " << port << " is already in use. Please use a different port." << COLOR_RESET << endl;
         return 1;
     }
 

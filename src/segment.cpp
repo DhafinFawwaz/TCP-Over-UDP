@@ -108,7 +108,7 @@ Segment updateChecksum(Segment segment){
  * Check if a TCP Segment has a valid checksum
  */
 bool isValidChecksum(Segment& segment){
-    return true;
+    // return true;
     uint16_t valid_sum = calculateSum(segment);
     valid_sum^=segment.checksum;
     // cout<<"sum: "<<valid_sum<<endl;

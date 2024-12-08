@@ -50,7 +50,6 @@ private:
     int32_t socket;
 
 
-    TCPStatusEnum status = TCPStatusEnum::CLOSING;
 
     SegmentHandler segment_handler;
     void initSocket();
@@ -64,6 +63,7 @@ private:
     uint32_t calculateSegmentIndex(uint32_t seq_num, uint32_t initial_seq_num);
 
 public:
+    TCPStatusEnum status = TCPStatusEnum::CLOSING;
     const uint32_t PAYLOAD_SIZE = 1460;
     const uint32_t SEGMENT_ONLY_SIZE = sizeof(Segment);
     const uint32_t MAX_SEGMENT_SIZE = PAYLOAD_SIZE + SEGMENT_ONLY_SIZE;
