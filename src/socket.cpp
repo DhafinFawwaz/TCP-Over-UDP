@@ -9,6 +9,7 @@
 #include <map>
 #include <tuple>
 #include <utility> // for pair
+#include <fcntl.h>
 // #include <cstring> //memset
 
 using namespace std;
@@ -23,6 +24,16 @@ TCPSocket::TCPSocket(string& ip, int32_t port){
         perror("[i] socket creation failed"); 
         exit(EXIT_FAILURE); 
     }
+
+    // int flags = fcntl(this->socket, F_GETFL, 0);
+    // if (flags == -1) {
+    //     perror("fcntl get failed");
+    //     exit(EXIT_FAILURE); 
+    // }
+    // if (fcntl(this->socket, F_SETFL, flags | O_NONBLOCK) == -1) {
+    //     perror("fcntl set failed");
+    //     exit(EXIT_FAILURE); 
+    // }
 }
 
 string TCPSocket::getConnectedIP() {
@@ -478,17 +489,17 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         
         // cout << "not fin" << endl;
 
-        uint32_t options_size = uint32_t(0) + (recv_segment.data_offset*4) - (HEADER_ONLY_SIZE);
-        uint32_t payload_size = recv_size - recv_segment.data_offset*4;
+        uint32_t options_size = uint32_t(0) + (uint32_t(recv_segment.data_offset)*uint32_t(4)) - (HEADER_ONLY_SIZE);
+        uint32_t payload_size = recv_size - recv_segment.data_offset*uint32_t(4);
         // cout << "options_size: " << options_size << endl;
         // cout << "payload_size: " << payload_size << endl;
         
-        if(options_size < 0) {
+        if(options_size < 0 || options_size > DATA_OFFSET_MAX_SIZE) {
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
             cout << RED << "[-] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid data offset" << COLOR_RESET << endl;
             continue;
         }
-        if(payload_size < 0) {
+        if(payload_size < 0 || payload_size > PAYLOAD_SIZE) {
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
             cout << RED << "[-] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid payload size" << COLOR_RESET << endl;
             continue;
