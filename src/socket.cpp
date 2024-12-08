@@ -144,6 +144,10 @@ void TCPSocket::listen() {
 
         while (true) {
             auto ack_buffer_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+            if(!isValidChecksum(syn_segment)) {
+                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+                continue;
+            }
             if(ack_buffer_size < 0) {
                 cout << RED << "[-] " << getFormattedStatus() << " [Handshake] Error, retrying" << COLOR_RESET << endl; // example case is timeout
                 retry = true;
@@ -218,7 +222,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
 
 // Sliding window with Go-Back-N
 void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
-    cout << BLU << "[i] " << getFormattedStatus() << " [i] Sending input to " << ip << ":" << port << COLOR_RESET << endl;
+    cout << MAG << "[i] " << getFormattedStatus() << " Sending input to " << ip << ":" << port << COLOR_RESET << endl;
     // for(uint32_t i = 0; i < dataSize; i++) {
     //     cout << dataStream[i];
     // }
@@ -268,9 +272,13 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
         Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
         // [~] [Established] Waiting for segments to be ACKed
-        cout << YEL << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be ACKed" << COLOR_RESET << endl;
+        cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be ACKed" << COLOR_RESET << endl;
         while(true) {
             auto recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+            if(!isValidChecksum(ack_segment)) {
+                cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+                continue;
+            }
             // cout << "recv_size: " << recv_size << endl;
             if(recv_size < 0) {
                 if(high_resolution_clock::now() - send_time > timeout) {
@@ -324,6 +332,10 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
     Segment fin_ack_segment; sockaddr_in addr; socklen_t len = sizeof(addr);
     while (true) {
         auto recv_size = recvAny(&fin_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
+        if(!isValidChecksum(fin_ack_segment)) {
+            cout << RED << "[i] " << getFormattedStatus() << " [Handshake] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            continue;
+        }
         if (recv_size > 0 && extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
             cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
             break;
@@ -339,7 +351,7 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
 
 // Sliding window with Go-Back-N
 int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
-    cout << YEL << "[i] " << getFormattedStatus() << " Ready to receive input from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+    cout << MAG << "[i] " << getFormattedStatus() << " Ready to receive input from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     
     // TODO: find out how much should this value be
     const uint32_t RWS = 3 * PAYLOAD_SIZE; // Receiver Window Size
@@ -355,17 +367,20 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     auto send_time = high_resolution_clock::now();
     chrono::seconds timeout(10);
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
+    cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be sent" << COLOR_RESET << endl;
     while (true) {
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
+        
         // cout << "======================" << endl;
         // cout << "recv_size: " << recv_size << endl;
         // cout << "errno: " << errno << endl;
 
         Segment recv_segment;
         memcpy(&recv_segment, payload, HEADER_ONLY_SIZE);
-        if(extract_flags(recv_segment.flags) == FIN_FLAG) {
+        if(isValidChecksum(recv_segment) && extract_flags(recv_segment.flags) == FIN_FLAG) {
             break;
         }
+        
         // cout << "not fin" << endl;
 
         uint32_t options_size = (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE);
@@ -385,14 +400,12 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         }
         recv_segment.options = vector<char>(payload + HEADER_ONLY_SIZE, payload + recv_segment.data_offset*4);
         recv_segment.payload = vector<char>(payload + recv_segment.data_offset*4, payload + recv_size);
+
         if(!isValidChecksum(recv_segment)) {
-            // cout<< "checksum:"<<recv_segment.checksum << endl;
-            // cout<< "checksum dfdfd:"<<calculateSum(recv_segment) << endl;
-            uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
-            cout << RED << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid checksum. Received corrupted packet" << COLOR_RESET << endl;
-            // must remove the element
-            continue; // discard
+            cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            continue;
         }
+
         // cout << "checksum valid" << endl;
 
         // cout << "recv_segment.seq_num: " << recv_segment.seq_num << endl;
@@ -488,6 +501,10 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
     Segment ack_segment;
     while(true) {
         int recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, addr, len);
+        if(!isValidChecksum(ack_segment)) {
+            cout << RED << "[i] " << getFormattedStatus() << " [Established] Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
+            continue;
+        }
         if (recv_size > 0 && extract_flags(ack_segment.flags) == ACK_FLAG) {
             cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received ACK request from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
             break;
