@@ -506,7 +506,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
                 uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE) - 1;
                 Segment ack_segment = ack(seq_num_ack);
                 sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
-                cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << seq_num_ack << "] Resent" << COLOR_RESET << endl;
+                cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << seq_num_ack << "] Resent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                 continue;
             }
             continue; // discard
