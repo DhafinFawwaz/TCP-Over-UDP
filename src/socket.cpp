@@ -284,6 +284,10 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
 
                 uint32_t data_index = ceil((LAR - initial_seq_num) / PAYLOAD_SIZE);
                 cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Received" << COLOR_RESET << endl;
+                
+                cout << "LFS: " << LFS << endl;
+                cout << "LAR: " << LAR << endl;
+                
                 break;
             }
         }
@@ -458,8 +462,21 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         cout << +recv_segment.data_offset*4 << endl;
         cout << +HEADER_ONLY_SIZE << endl;
-        cout << "options size: " << (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE)  << endl;
-        cout << "payload size: " << recv_size - recv_segment.data_offset*4 << endl;
+        uint32_t options_size = (payload + recv_segment.data_offset*4) - (payload + HEADER_ONLY_SIZE);
+        uint32_t payload_size = recv_size - recv_segment.data_offset*4;
+        cout << "options_size: " << options_size << endl;
+        cout << "payload_size: " << payload_size << endl;
+        
+        if(options_size < 0) {
+            uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+            cout << RED << "[-] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid data offset" << COLOR_RESET << endl;
+            continue;
+        }
+        if(payload_size < 0) {
+            uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+            cout << RED << "[-] " << getFormattedStatus() << " [Established] [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid payload size" << COLOR_RESET << endl;
+            continue;
+        }
         recv_segment.options = vector<char>(payload + HEADER_ONLY_SIZE, payload + recv_segment.data_offset*4);
         recv_segment.payload = vector<char>(payload + recv_segment.data_offset*4, payload + recv_size);
         if(!isValidChecksum(recv_segment)) {
@@ -482,7 +499,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
                 // resend the ack
                 uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
                 Segment ack_segment = ack(seq_num_ack);
-                sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, 20);
+                sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
                 cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << seq_num_ack << "] Resent" << COLOR_RESET << endl;
                 continue;
             }
@@ -530,6 +547,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         cout << "prev(buffers.end())->second.payload.size(): " << prev(buffers.end())->second.payload.size() << endl;
         seq_num_ack = prev(buffers.end())->first + prev(buffers.end())->second.payload.size();
         LFR = seq_num_ack;
+        LAF = LFR + RWS;
         Segment ack_segment = ack(seq_num_ack);
         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, 20);
         
