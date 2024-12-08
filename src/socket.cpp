@@ -479,7 +479,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         
         // cout << "not fin" << endl;
 
-        uint32_t options_size = (recv_segment.data_offset*4) - (HEADER_ONLY_SIZE);
+        uint32_t options_size = uint32_t(0) + (recv_segment.data_offset*4) - (HEADER_ONLY_SIZE);
         uint32_t payload_size = recv_size - recv_segment.data_offset*4;
         // cout << "options_size: " << options_size << endl;
         // cout << "payload_size: " << payload_size << endl;
