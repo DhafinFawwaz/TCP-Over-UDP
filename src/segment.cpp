@@ -59,7 +59,7 @@ uint16_t calculateSum(Segment &segment){
     new_sum ^= (uint16_t) (segment.seq_num>>16);
     new_sum ^= (uint16_t) (segment.ack_num);
     new_sum ^= (uint16_t) (segment.ack_num>>16);
-    new_sum ^= uint16_t(0) + segment.data_offset<<12 + segment.reserved<<8 + segment.flags.cwr<<7 + segment.flags.ece<<6 + segment.flags.urg<<5 + segment.flags.ack<<4 + segment.flags.psh<<3 + segment.flags.pst<<2 + segment.flags.syn<<1 + segment.flags.fin;
+    new_sum ^= uint16_t(0) | segment.data_offset<<12 | segment.reserved<<8 | segment.flags.cwr<<7 | segment.flags.ece<<6 | segment.flags.urg<<5 | segment.flags.ack<<4 | segment.flags.psh<<3 | segment.flags.pst<<2 | segment.flags.syn<<1 | segment.flags.fin;
     new_sum ^= segment.urg_point;
     new_sum ^= segment.window;
     cout << 5 << endl;
@@ -84,14 +84,12 @@ uint16_t calculateSum(Segment &segment){
         new_sum ^= temp;
     }
     cout << 7 << endl;
-    return new_sum;
+    return (uint16_t) new_sum;
 }
 
 // update return type as needed
 uint16_t calculateChecksum(Segment segment){
-    cout<<"iniin"<<calculateSum(segment)<<endl;
-    cout<<"iniindsfdsf"<<~calculateSum(segment)<<endl;
-    return ~calculateSum(segment);
+    return (uint16_t) ~calculateSum(segment);
 }
 
 /**
@@ -106,11 +104,10 @@ Segment updateChecksum(Segment segment){
  * Check if a TCP Segment has a valid checksum
  */
 bool isValidChecksum(Segment segment){
-    return true;
     uint16_t valid_sum = calculateSum(segment);
     valid_sum^=segment.checksum;
-    cout<<"dsds"<<valid_sum<<endl;
-    cout<<"dsdss"<<(uint16_t)~valid_sum<<endl;
+    cout<<"sum: "<<valid_sum<<endl;
+    cout<<"checksum: "<<(uint16_t)~valid_sum<<endl;
     return !(uint16_t)~valid_sum;
 }
 
