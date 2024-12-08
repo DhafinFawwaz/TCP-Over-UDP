@@ -17,10 +17,19 @@ void Client::run() {
         cout << RED << "[-] Connecting to server failed" << COLOR_RESET << endl;
         return;
     }
-    uint32_t BUFFER_SIZE = DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE*100;
-    uint8_t buffer[BUFFER_SIZE]; sockaddr_in addr; socklen_t len = sizeof(addr);
-    int32_t recv_size = this->connection.recv(buffer, BUFFER_SIZE, &addr, &len);
-    handleMessage(buffer, recv_size);
+
+    const uint32_t MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10mb
+    vector<uint8_t> buffer(MAX_BUFFER_SIZE);
+    sockaddr_in addr; 
+    socklen_t len = sizeof(addr);
+
+    int32_t recv_size = this->connection.recv(buffer.data(), buffer.size(), &addr, &len);
+    
+    if (recv_size > 0) {
+        handleMessage(buffer.data(), recv_size);
+    } else {
+        cout << RED << "[-] Failed to receive data" << COLOR_RESET << endl;
+    }
 }
 
 
