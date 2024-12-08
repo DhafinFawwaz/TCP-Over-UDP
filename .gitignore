@@ -4,6 +4,8 @@ peda*
 .gdb*
 input.txt
 test/response
+test/response.txt
+test/response.jpg
 
 # Prerequisites
 *.d

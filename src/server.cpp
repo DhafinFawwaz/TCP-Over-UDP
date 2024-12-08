@@ -10,8 +10,10 @@ void Server::SetResponseBuffer(vector<char>& buffer) {
 }
 
 void Server::run() {
-    this->connection.listen();
-    this->connection.send(this->connection.getConnectedIP().c_str(), this->connection.getConnectedPort(), this->response_buffer.data(), this->response_buffer.size());
+    while(true) {
+        this->connection.listen();
+        this->connection.send(this->connection.getConnectedIP().c_str(), this->connection.getConnectedPort(), this->response_buffer.data(), this->response_buffer.size());
+    }
 }
 
 

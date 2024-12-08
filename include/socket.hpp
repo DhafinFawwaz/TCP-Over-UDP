@@ -59,6 +59,9 @@ private:
 
     void fin_send(const char* ip, int32_t port);
     void fin_recv(sockaddr_in* addr, socklen_t* len);
+    bool isSocketBinded(int socket_fd);
+
+    uint32_t calculateSegmentIndex(uint32_t seq_num, uint32_t initial_seq_num);
 
 public:
     const uint32_t PAYLOAD_SIZE = 1460;

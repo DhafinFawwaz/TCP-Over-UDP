@@ -21,14 +21,11 @@ void Client::run() {
 
 
 void Client::handleMessage(void* response, uint32_t size) {
-    cout << "Size: " << size << endl;
-    for(int i = 0; i < 20; i++) {
-        cout << ((char*)response)[i];
-    }
-    cout << endl;
+    cout << "[+] Received: " << size << " byte" << endl;
     ofstream outFile("test/response", ios::binary);
     outFile.write(static_cast<const char*>(response), size);
     outFile.close();
+    cout << "[+] Response written to 'test/response'" << endl;
 }
 
 

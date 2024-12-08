@@ -77,10 +77,10 @@ Segment fin();
  */
 Segment finAck();
 
-uint16_t calculateSum(Segment &segment);
+uint16_t calculateSum(Segment& segment);
 
 // update return type as needed
-uint16_t calculateChecksum(Segment segment);
+uint16_t calculateChecksum(Segment& segment);
 
 /**
  * Return a new segment with a calcuated checksum fields
@@ -90,7 +90,7 @@ Segment updateChecksum(Segment segment);
 /**
  * Check if a TCP Segment has a valid checksum
  */
-bool isValidChecksum(Segment segment);
+bool isValidChecksum(Segment& segment);
 
 
 uint8_t extract_flags(const Segment::Flags &flags);
