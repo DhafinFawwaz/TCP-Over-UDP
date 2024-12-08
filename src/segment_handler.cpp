@@ -3,6 +3,8 @@
 #include <iostream>
 #include <vector>
 #include <string.h>
+#include <fstream>
+#include <cstdint>
 using namespace std;
 
 #define PAYLOAD_SIZE 1460
@@ -22,7 +24,16 @@ SegmentHandler::~SegmentHandler() {
 }
 
 uint32_t SegmentHandler::generateInitialSeqNum(){
-    return rand() % 1000;
+    uint32_t randomValue;
+    ifstream urandom("/dev/urandom", ios::in | ios::binary);
+    while(!urandom.is_open()){
+        cout << "Couldn't open /dev/urandom" << endl;
+        ifstream urandom("/dev/urandom", ios::in | ios::binary);
+    }
+    urandom.read(reinterpret_cast<char*>(&randomValue), sizeof(randomValue));
+    urandom.close();
+    
+    return randomValue; 
 }
 void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort){
     if (dataSize == 0 || dataStream == nullptr) {
