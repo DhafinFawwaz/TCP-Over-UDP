@@ -5,6 +5,7 @@ Segment syn(uint32_t seqNum){
     Segment segment = {0};
     segment.flags.syn = 1;
     segment.seq_num = seqNum;
+    segment.checksum = calculateChecksum(segment);
     return segment;
 }
 
@@ -15,6 +16,7 @@ Segment ack( uint32_t ackNum){
     Segment segment = {0};
     segment.flags.ack = 1;
     segment.ack_num = ackNum;
+    segment.checksum = calculateChecksum(segment);
     return segment;
 }
 
@@ -27,6 +29,7 @@ Segment synAck(uint32_t seqNum, uint32_t ackNum){
     segment.flags.syn = 1;
     segment.seq_num = seqNum;
     segment.ack_num = ackNum;
+    segment.checksum = calculateChecksum(segment);
     return segment;
 }
 
@@ -36,6 +39,7 @@ Segment synAck(uint32_t seqNum, uint32_t ackNum){
 Segment fin(){
     Segment segment = {0};
     segment.flags.fin = 1;
+    segment.checksum = calculateChecksum(segment);
     return segment;
 }
 
@@ -46,6 +50,7 @@ Segment finAck(){
     Segment segment = {0};
     segment.flags.fin = 1;
     segment.flags.ack = 1;
+    segment.checksum = calculateChecksum(segment);
     return segment;
 }
 
@@ -62,7 +67,6 @@ uint16_t calculateSum(Segment& segment){
     new_sum ^= uint16_t(0) | segment.data_offset<<12 | segment.reserved<<8 | segment.flags.cwr<<7 | segment.flags.ece<<6 | segment.flags.urg<<5 | segment.flags.ack<<4 | segment.flags.psh<<3 | segment.flags.pst<<2 | segment.flags.syn<<1 | segment.flags.fin;
     new_sum ^= segment.urg_point;
     new_sum ^= segment.window;
-    // cout << 5 << endl;
     uint16_t temp;
     for(uint32_t i = 0; i < segment.options.size(); i+=2){
         temp = 0;
