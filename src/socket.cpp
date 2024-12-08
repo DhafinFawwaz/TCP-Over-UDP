@@ -227,7 +227,6 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
             auto sync_ack_buffer_size = recvAny(&syn_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
             if(sync_ack_buffer_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
                 if(high_resolution_clock::now() - send_time_syn_ack > timeout_syn_ack) {
-                    this->status = TCPStatusEnum::SYN_SENT;
                     break;
                 } else continue;
             }
@@ -445,9 +444,17 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     chrono::seconds timeout(10);
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
     cout << MAG << "[~] " << getFormattedStatus() << " [Established] Waiting for segments to be sent" << COLOR_RESET << endl;
+
+
     while (true) {
         // sleep(1);
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
+        if(recv_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+            if(high_resolution_clock::now() - send_time > timeout) {
+                this->status = TCPStatusEnum::FAILED;
+                break;
+            } else continue;
+        }
         
         // cout << "======================" << endl;
         // cout << "recv_size: " << recv_size << endl;
