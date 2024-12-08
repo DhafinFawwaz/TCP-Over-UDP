@@ -20,6 +20,10 @@ vector<char> readFileAsBinary(const string& filePath) {
     }
     std::vector<char> buffer((istreambuf_iterator<char>(inFile)), istreambuf_iterator<char>());
     inFile.close();
+
+    // cout << endl;
+    // for(auto& c : buffer) cout << c;
+    // cout << "Size: " << buffer.size() << endl;
     return buffer;
 }
 

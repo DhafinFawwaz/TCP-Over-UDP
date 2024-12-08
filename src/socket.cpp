@@ -192,11 +192,15 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
     auto send_time = high_resolution_clock::now();  
     chrono::seconds timeout(5);
     while(true) {
+        cout << "======================" << endl;
 
         bool anything_sent = false;
+        
+        cout << "LAR: " << LAR << endl;
+        cout << "LFS: " << LFS << endl;
         for(auto& [seq_num, segment] : segment_handler.segmentMap) {
             if(seq_num < LAR) continue;
-            if(seq_num > LFS) break;
+            if(seq_num >= LFS) break;
             anything_sent = true;
             
             // char payload[sizeof(Segment) + segment.payload_len];
@@ -282,8 +286,8 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
                 LFS = min(prev(segment_handler.segmentMap.end())->second.seq_num, LFS + ack_segment.ack_num - LAR);
                 LAR = max(LAR, ack_segment.ack_num);
 
-                uint32_t data_index = ceil((LAR - initial_seq_num) / PAYLOAD_SIZE);
-                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] Received" << COLOR_RESET << endl;
+                uint32_t data_index = ceil((LAR - initial_seq_num) / PAYLOAD_SIZE) - 1;
+                cout << YEL << "[i] " << getFormattedStatus() << " [Established] [Seg " << data_index+1 << "] [A=" << ack_segment.ack_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
                 
                 cout << "LFS: " << LFS << endl;
                 cout << "LAR: " << LAR << endl;
@@ -440,6 +444,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
     while (true) {
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
+        cout << "======================" << endl;
         cout << "recv_size: " << recv_size << endl;
         // cout << "errno: " << errno << endl;
         if(recv_size < 0) {
@@ -492,12 +497,13 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         cout << "recv_segment.seq_num: " << recv_segment.seq_num << endl;
         cout << "LFR: " << LFR << endl;
         cout << "LAF: " << LAF << endl;
+        cout << "seq_num_ack: " << seq_num_ack << endl;
 
 
         if(recv_segment.seq_num < LFR || recv_segment.seq_num >= LAF) {
             if(recv_segment.seq_num >= initial_seq_num) { // meaning it has been acked but the ack is loss so the server resend it.
                 // resend the ack
-                uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
+                uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE) - 1;
                 Segment ack_segment = ack(seq_num_ack);
                 sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
                 cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << seq_num_ack << "] Resent" << COLOR_RESET << endl;
@@ -512,7 +518,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         buffers[recv_segment.seq_num] = recv_segment;
         uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
-        cout << YEL << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [S=" << recv_segment.seq_num << "] Ack" << COLOR_RESET << endl;
+        cout << YEL << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [S=" << recv_segment.seq_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
 
         cout << "seq_num_ack: " << seq_num_ack << endl;
         cout << "recv_segment.seq_num: " << recv_segment.seq_num << endl;
@@ -552,7 +558,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, 20);
         
         // uint32_t data_index = ceil((LFR - initial_seq_num) / PAYLOAD_SIZE);
-        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [S=" << seq_num_ack << "] Sent" << COLOR_RESET << endl;
+        cout << BLU << "[+] " << getFormattedStatus() << " [Established] [Seg=" << data_index+1 << "] [A=" << seq_num_ack << "] Sent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
     }
     if(this->status == TCPStatusEnum::FAILED) {
         cout << RED << "[-] " << getFormattedStatus() << " [Failed]" << COLOR_RESET << endl;
