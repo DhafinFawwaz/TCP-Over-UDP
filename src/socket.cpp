@@ -447,14 +447,15 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
 
     while (true) {
-        // sleep(1);
+        sleep(1);
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
-        if(recv_size == -1 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if(recv_size == -1) {
             if(high_resolution_clock::now() - send_time > timeout) {
                 this->status = TCPStatusEnum::FAILED;
                 break;
             } else continue;
         }
+        send_time = high_resolution_clock::now(); // reset
         
         // cout << "======================" << endl;
         // cout << "recv_size: " << recv_size << endl;
