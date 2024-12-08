@@ -9,7 +9,8 @@
 using namespace std;
 
 void cinLowercase(string& str) {
-    cin >> str; for(auto& c : str) c = tolower(c);
+    cin >> str; 
+    for (auto& c : str) c = tolower(c);
 }
 
 vector<char> readFileAsBinary(const string& filePath) {
@@ -27,25 +28,35 @@ vector<char> readFileAsBinary(const string& filePath) {
     return buffer;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     cout << sizeof(Segment) << endl;
-    if(argc < 2 || argc > 3) {
+    if (argc < 2 || argc > 3) {
         cout << "Usage: ./node [host] [port]" << endl;
         return 1;
     }
-    srand (time(NULL));
+
+    srand(time(NULL));
 
     string host;
     string port;
 
-    if(argc == 2 && atoi(argv[1])) {
+    if (argc == 2 && atoi(argv[1])) {
         host = "localhost";
         port = argv[1];
-    } else if(argc == 3) {
+    } else if (argc == 3) {
         host = argv[1];
         port = argv[2];
     } else {
         cout << "Usage: ./node [host] [port]" << endl;
+        return 1;
+    }
+
+    int portNumber = stoi(port);
+
+    PortLock portLock(portNumber);
+    if (!portLock.isLocked()) {
+        cout << "[-] Port " << port << " is already in use. Please use a different port." << endl;
+        return 1;
     }
 
     cout << "[i] Node started at " << host << ":" << port << endl;
@@ -54,20 +65,22 @@ int main(int argc, char *argv[]) {
     cout << "[?] 2. Receiver" << endl;
     cout << "[?] Input: ";
 
-    string mode; cinLowercase(mode);
-
+    string mode;
+    cinLowercase(mode);
     cout << endl;
-    if(mode == "1" || mode == "sender") {
+
+    if (mode == "1" || mode == "sender") {
         cout << "[+] Node is now a sender" << endl;
         cout << "[?] Please choose the sending mode" << endl;
         cout << "[?] 1. User input" << endl;
         cout << "[?] 2. File input" << endl;
         cout << "Input: ";
 
-        string sendingMode; cinLowercase(sendingMode);
-
+        string sendingMode;
+        cinLowercase(sendingMode);
         cout << endl;
-        if(sendingMode == "1" || sendingMode == "user input") {
+
+        if (sendingMode == "1" || sendingMode == "user input") {
             cout << "[+] Input mode chosen, please enter your input: ";
             string input; cin >> input;
             vector<char> buffer(input.begin(), input.end());
@@ -77,8 +90,7 @@ int main(int argc, char *argv[]) {
             Server server(host, stoi(port));
             server.SetResponseBuffer(buffer);
             server.run();
-        }
-        else if(sendingMode == "2" || sendingMode == "file input") {
+        } else if (sendingMode == "2" || sendingMode == "file input") {
             cout << "[+] File mode chosen, please enter the file path: ";
             string filePath; cin >> filePath;
             vector<char> buffer = readFileAsBinary(filePath);
@@ -86,23 +98,25 @@ int main(int argc, char *argv[]) {
             cout << "[+] File has been successfully read." << endl;
             cout << "[+] Size: " << buffer.size() << " bytes" << endl;
 
-            Server server(host, stoi(port));
+            Server server(host, portNumber);
             server.SetResponseBuffer(buffer);
             server.run();
+        } else {
+            cout << "[-] Invalid mode" << endl;
         }
-        else cout << "[-] Invalid mode" << endl;
-    }
-    else if(mode == "2" || mode == "receiver") {
+    } else if (mode == "2" || mode == "receiver") {
         cout << "[+] Node is now a receiver" << endl;
         cout << "[?] Input the server program's port: ";
-        string serverPort; cin >> serverPort;
+        string serverPort;
+        cin >> serverPort;
         cout << endl;
-        
-        Client client(host, stoi(port));
+
+        Client client(host, portNumber);
         client.setServerTarget(host, stoi(serverPort));
         client.run();
+    } else {
+        cout << "[-] Invalid mode" << endl;
     }
-    else cout << "[-] Invalid mode" << endl;
 
     return 0;
 }

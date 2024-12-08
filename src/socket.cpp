@@ -78,7 +78,6 @@ void TCPSocket::initSocket() {
     }
 }
 
-
 // return size of received data, -1 if error
 int32_t TCPSocket::recvAny(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
     uint32_t size = recvfrom(this->socket, buffer, length, MSG_WAITALL, (sockaddr*) addr, len); 
@@ -190,9 +189,10 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
     while(retry) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         this->status = TCPStatusEnum::SYN_SENT;
-        cout << BLU << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << YEL << "[i] " << getFormattedStatus() << " [Handshake] [S=" << initial_seq_num << "] Sending SYN request to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
         syn_segment = syn(initial_seq_num);
         sendAny(this->connected_ip.c_str(), this->connected_port, &syn_segment, HEADER_ONLY_SIZE);
+        this->status = TCPStatusEnum::SYN_SENT;
 
         while(true) {
             auto sync_ack_buffer_size = recvAny(&syn_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
@@ -328,6 +328,7 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
     Segment fin_segment = fin();
     sendAny(ip, port, &fin_segment, HEADER_ONLY_SIZE);
     cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending FIN request to " << ip << ":" << port << COLOR_RESET << endl;
+    this->status = TCPStatusEnum::FIN_WAIT_1;
 
     Segment fin_ack_segment; sockaddr_in addr; socklen_t len = sizeof(addr);
     while (true) {
@@ -338,14 +339,17 @@ void TCPSocket::fin_send(const char* ip, int32_t port) {
         }
         if (recv_size > 0 && extract_flags(fin_ack_segment.flags) == FIN_ACK_FLAG) {
             cout << YEL << "[+] " << getFormattedStatus() << " [Closing] Received FIN-ACK request from " << ip << ":" << port << COLOR_RESET << endl;
+            this->status = TCPStatusEnum::CLOSING;
             break;
         }
     }
 
     Segment ack_segment = ack(fin_ack_segment.ack_num);
     sendAny(ip, port, &ack_segment, HEADER_ONLY_SIZE);
+    this->status = TCPStatusEnum::TIME_WAIT;
     cout << BLU << "[i] " << getFormattedStatus() << " [Closing] Sending ACK request to " << ip << ":" << port << COLOR_RESET << endl;
 
+    this->status = TCPStatusEnum::CLOSED;
     cout << GRN << "[i] " << getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
 }
 

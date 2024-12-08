@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "*.embeddedhtml": "html",
+        ".fantomasignore": "ignore",
         "list": "cpp",
         "xhash": "cpp",
         "xchar*": "cpp",
@@ -90,6 +91,24 @@
         "typeindex": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "format": "cpp",
+        "ios": "cpp",
+        "locale": "cpp",
+        "xfacet": "cpp",
+        "xiosbase": "cpp",
+        "xlocale": "cpp",
+        "xlocbuf": "cpp",
+        "xlocinfo": "cpp",
+        "xlocmes": "cpp",
+        "xlocmon": "cpp",
+        "xlocnum": "cpp",
+        "xloctime": "cpp",
+        "xmemory": "cpp",
+        "xstddef": "cpp",
+        "xstring": "cpp",
+        "xtr1common": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp"
     }
 }
