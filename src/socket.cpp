@@ -63,7 +63,15 @@ void TCPSocket::initSocket() {
 
 // return size of received data, -1 if error
 int32_t TCPSocket::recvAny(void* buffer, uint32_t length, sockaddr_in* addr, socklen_t* len) {
-    return recvfrom(this->socket, buffer, length, MSG_WAITALL, (sockaddr*) addr, len); 
+    uint32_t size = recvfrom(this->socket, buffer, length, MSG_WAITALL, (sockaddr*) addr, len); 
+
+    // cout << "content received:" << endl;
+    // for(int i = 0; i < 20; i++) {
+    //     cout << ((char*)buffer)[i];
+    // }
+    // cout << endl;
+
+    return size;
 }
 void TCPSocket::sendAny(const char* ip, int32_t port, void* dataStream, uint32_t dataSize) {
     sockaddr_in targetAddr; 
@@ -71,6 +79,12 @@ void TCPSocket::sendAny(const char* ip, int32_t port, void* dataStream, uint32_t
     targetAddr.sin_family = AF_INET;
     targetAddr.sin_addr.s_addr = INADDR_ANY; 
     targetAddr.sin_port = port;
+
+    cout << "content to send:" << endl;
+    for(int i = 0; i < 20; i++) {
+        cout << ((char*)dataStream)[i];
+    }
+    cout << endl;
 
     sendto(this->socket, dataStream, dataSize, MSG_CONFIRM, (sockaddr*) &targetAddr, sizeof(targetAddr)); 
 }
@@ -193,6 +207,7 @@ void TCPSocket::send(const char* ip, int32_t port, void* dataStream, uint32_t da
     chrono::seconds timeout(5);
     while(true) {
         cout << "======================" << endl;
+        // sleep(1);
 
         bool anything_sent = false;
         
@@ -445,6 +460,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     while (true) {
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
         cout << "======================" << endl;
+        // sleep(1);
         cout << "recv_size: " << recv_size << endl;
         // cout << "errno: " << errno << endl;
         if(recv_size < 0) {
@@ -569,7 +585,7 @@ int32_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
     uint32_t current = 0;
     for(auto& [seq_num, segment] : buffers) {
-        memcpy(receive_buffer, segment.payload.data()+current, segment.payload.size());
+        memcpy(receive_buffer + current, segment.payload.data(), segment.payload.size());
         current += segment.payload.size();
     }
 
