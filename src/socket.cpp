@@ -11,6 +11,7 @@
 #include <tuple>
 #include <utility> // for pair
 #include <fcntl.h>
+#include <thread>
 // #include <cstring> //memset
 
 using namespace std;
@@ -340,7 +341,11 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
                 this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
 
                 int client_socket_to_handshake = 0; if(!this->connection_map.empty()) client_socket_to_handshake = prev(this->connection_map.end())->first + 1;
-                this->connection_map[client_socket_to_handshake] = ConnectionInfo(server_ip, server_port);
+
+                ConnectionInfo ci(addr);
+                this->connection_map[client_socket_to_handshake] = ci;
+                // this->connected_ip = ci.get_ip();
+                // this->connected_port = ci.get_port();
                 return;
              }
         }
@@ -417,11 +422,11 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
         sockaddr_in addr; socklen_t len = sizeof(addr);
         // [~] [Established] Waiting for segments to be ACKed
         cout << MAG << "[~] " << ci.getFormattedStatus() << " Waiting for segments to be ACKed" << COLOR_RESET << endl;
+        this_thread::sleep_for(chrono::milliseconds(10)); // collect all acks within 10ms, done by the other thread created by listen.
 
         auto recv_time = high_resolution_clock::now();
         chrono::seconds timeout_recv(2);
         while(true) {
-
             auto& queue = this->received_buffer_queue[ci.addr];
             if(queue.empty()) {
                 if(high_resolution_clock::now() - recv_time < timeout_recv) continue; else {
@@ -429,7 +434,6 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
                     break;
                 }
             }
-
             ack_segment = queue.front();
             while(!queue.empty()) {
                 Segment& segment = queue.front();
@@ -581,8 +585,8 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         uint32_t options_size = uint32_t(0) + (uint32_t(recv_segment.data_offset)*uint32_t(4));
         uint32_t payload_size = recv_size - recv_segment.data_offset*uint32_t(4);
-        cout << "options_size: " << options_size << endl;
-        cout << "payload_size: " << payload_size << endl;
+        // cout << "options_size: " << options_size << endl;
+        // cout << "payload_size: " << payload_size << endl;
         
         if(options_size < 5 || options_size > DATA_OFFSET_MAX_SIZE) {
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
@@ -609,13 +613,15 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         // cout << "LAF: " << LAF << endl;
         // cout << "seq_num_ack: " << seq_num_ack << endl;
 
+        string hostPort = toHostPort(*addr);
+
         if(recv_segment.seq_num < LFR || recv_segment.seq_num >= LAF) {
             if(recv_segment.seq_num >= initial_seq_num) { // meaning it has been acked but the ack is loss so the server resend it.
                 // resend the ack
                 uint32_t data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
                 Segment ack_segment = ack(seq_num_ack);
                 sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
-                cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Resent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+                cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Resent to " << hostPort << COLOR_RESET << endl;
                 continue;
             }
             continue; // discard
@@ -627,7 +633,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         buffers[recv_segment.seq_num] = recv_segment;
         uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
-        cout << YEL << "[+] " << getFormattedStatus() << " [Seg=" << data_index << "] [S=" << recv_segment.seq_num << "] ACKed from " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << YEL << "[+] " << getFormattedStatus() << " [Seg=" << data_index << "] [S=" << recv_segment.seq_num << "] ACKed from " << hostPort << COLOR_RESET << endl;
 
         // cout << "seq_num_ack: " << seq_num_ack << endl;
         // cout << "recv_segment.seq_num: " << recv_segment.seq_num << endl;
@@ -667,7 +673,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
         
         data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
-        cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Sent to " << this->connected_ip << ":" << this->connected_port << COLOR_RESET << endl;
+        cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Sent to " << hostPort << COLOR_RESET << endl;
 
         if(extract_flags(recv_segment.flags) == PSH_FLAG) {
             segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
@@ -720,6 +726,7 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
             if (extract_flags(ack_segment.flags) == ACK_FLAG) {
                 this->status = TCPStatusEnum::TIME_WAIT;
                 cout << YEL << "[+] " << getFormattedStatus() << " Received ACK request from " << hostPort << COLOR_RESET << endl;
+                this->status = TCPStatusEnum::CLOSED;
                 cout << GRN << "[i] " << getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
                 return;
             }
