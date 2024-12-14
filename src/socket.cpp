@@ -283,8 +283,11 @@ int TCPSocket::accept(sockaddr_in* addr, socklen_t* len) {
                 cout << YEL << "[i] " << ci.getFormattedStatus() << " [A=" << ack_segment.ack_num << "] Received ACK request from " << hostPort << COLOR_RESET << endl;
                 ci.status = TCPStatusEnum::ESTABLISHED;
                 cout << GRN << "[i] " << ci.getFormattedStatus() << " Connection estabilished with "<< hostPort << COLOR_RESET << endl;
-                this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
-                this->segment_handler.setInitialAckNum(ack_segment.ack_num);
+                ci.segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
+                ci.segment_handler.setInitialAckNum(ack_segment.ack_num);
+
+                // this->segment_handler.setInitialSeqNum(syn_ack_segment.seq_num);
+                // this->segment_handler.setInitialAckNum(ack_segment.ack_num);
                 this->connection_map[client_socket_to_handshake] = ci;
                 return client_socket_to_handshake;
             }
@@ -393,6 +396,8 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
     // for(uint32_t i = 0; i < dataSize; i++) {
     //     cout << dataStream[i];
     // }
+
+    SegmentHandler& segment_handler = ci.segment_handler;
 
     // TODO: find out how much should this value be
     const uint32_t SWS = (4 - 1) * PAYLOAD_SIZE; // Sender Window Size

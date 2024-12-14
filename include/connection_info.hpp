@@ -23,6 +23,7 @@ public:
     sockaddr_in addr;
     bool is_packet_received;
     TCPStatusEnum status;
+    SegmentHandler segment_handler;
     ConnectionInfo();
     ConnectionInfo(sockaddr_in addr);
     ConnectionInfo(string& server, int32_t port);

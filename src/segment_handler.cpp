@@ -16,7 +16,8 @@ SegmentHandler::SegmentHandler(){
     this->dataStream = nullptr;
     this->dataSize = 0;
     this->dataIndex = 0;
-    this->segmentMap = map<uint32_t, Segment>();
+    cout << "segment handler created" << endl;
+    // this->segmentMap = map<uint32_t, Segment>();
 }
 
 SegmentHandler::~SegmentHandler() {
@@ -156,16 +157,16 @@ void SegmentHandler::setWindowSize(uint8_t windowSize){
 }
 
 uint8_t SegmentHandler::advanceWindow(deque<Segment> &subSegments){
-    if(subSegments.size() == 0) {
-        dataIndex = 0;
-        for(uint32_t i = 0; i < windowSize; i++) {
-            subSegments.push_back(segmentBuffer[i]);
-        }
-    } else {
-        dataIndex++;
-        subSegments.pop_front();
-        subSegments.push_back(segmentBuffer[dataIndex+windowSize-1]);
-    }
+    // if(subSegments.size() == 0) {
+    //     dataIndex = 0;
+    //     for(uint32_t i = 0; i < windowSize; i++) {
+    //         subSegments.push_back(segmentBuffer[i]);
+    //     }
+    // } else {
+    //     dataIndex++;
+    //     subSegments.pop_front();
+    //     subSegments.push_back(segmentBuffer[dataIndex+windowSize-1]);
+    // }
 }
 
 void SegmentHandler::setInitialSeqNum(uint32_t seqNum){

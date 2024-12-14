@@ -16,10 +16,8 @@ private:
     void *dataStream;
     uint32_t dataSize;
     uint32_t dataIndex;
-    // Segment *segmentBuffer; // or use std vector if you like
 
 public:
-    vector<Segment> segmentBuffer;
     map<uint32_t, Segment> segmentMap;
     ~SegmentHandler();
     SegmentHandler();

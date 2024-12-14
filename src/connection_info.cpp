@@ -51,7 +51,6 @@ string ConnectionInfo::getFormattedStatus() {
         {TCPStatusEnum::LAST_ACK, "LAST_ACK"},
         {TCPStatusEnum::TIME_WAIT, "TIME_WAIT"},
         {TCPStatusEnum::CLOSED, "CLOSED"},
-        {TCPStatusEnum::FAILED, "FAILED"},
     };
 
     std::string statusString = "[";
