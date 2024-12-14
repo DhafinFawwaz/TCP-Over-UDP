@@ -111,9 +111,10 @@ int main(int argc, char* argv[]) {
         string serverPort;
         cin >> serverPort;
         cout << endl;
+        string serverIp = "255.255.255.255";
 
         Client client(host, portNumber);
-        client.setServerTarget(host, stoi(serverPort));
+        client.setServerTarget(serverIp , stoi(serverPort));
         client.run();
     } else {
         cout << "[-] Invalid mode" << endl;

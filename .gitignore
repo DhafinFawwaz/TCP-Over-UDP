@@ -6,6 +6,10 @@ input.txt
 test/response
 test/response.txt
 test/response.jpg
+./server.cpp
+./client.cpp
+./server
+./client
 
 # Prerequisites
 *.d

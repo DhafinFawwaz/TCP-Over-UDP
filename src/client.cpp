@@ -43,5 +43,5 @@ void Client::handleMessage(void* response, uint32_t size) {
 
 
 Client::~Client() {
-    connection.close();
+    connection.close(-1);
 }

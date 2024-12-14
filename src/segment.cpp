@@ -54,6 +54,19 @@ Segment finAck(){
     return segment;
 }
 
+/**
+ * Generate Segment that contain PSH packet
+ */
+Segment psh(uint32_t seqNum, uint32_t ackNum, vector<char> payload){
+    Segment segment = {0};
+    segment.flags.psh = 1;
+    segment.seq_num = seqNum;
+    segment.ack_num = ackNum;
+    segment.payload = payload;
+    segment.checksum = calculateChecksum(segment);
+    return segment;
+}
+
 
 // return xor of all bits on the segment except checksum
 uint16_t calculateSum(Segment& segment){

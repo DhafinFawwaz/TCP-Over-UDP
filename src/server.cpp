@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <map>
+#include <thread>
 
 Server::Server(std::string& host, int port)
     : Node(host, port), port_lock(std::unique_ptr<PortLock>(new PortLock(port))) {
@@ -18,11 +19,23 @@ void Server::SetResponseBuffer(vector<char>& buffer) {
     this->response_buffer = buffer;
 }
 
+void Server::handle_client(int client_socket) {
+    sockaddr_in addr; socklen_t len = sizeof(addr);
+    this->connection.send(client_socket, (char*)this->response_buffer.data(), this->response_buffer.size());
+    this->connection.close(client_socket);
+}
+
 void Server::run() {
     try {
+        this->connection.listen();
+        vector<thread> threads;
         while(true) {
-            this->connection.listen();
-            this->connection.send(this->connection.getConnectedIP().c_str(), this->connection.getConnectedPort(), (char*)this->response_buffer.data(), this->response_buffer.size());
+            sockaddr_in addr; socklen_t len = sizeof(addr);
+            int client_socket = this->connection.accept(&addr, &len);
+            this->handle_client(client_socket);
+            threads.emplace_back([this, client_socket]() {
+                this->handle_client(client_socket);
+            });
         }
     } catch (const std::exception& e) {
         std::cerr << "Error running server: " << e.what() << std::endl;
@@ -31,5 +44,7 @@ void Server::run() {
 
 
 Server::~Server() {
-    connection.close();
+    for (auto& [key, value] : this->connection.connection_map) {
+        this->connection.close(key);
+    }
 }

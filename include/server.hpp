@@ -12,6 +12,7 @@ public:
     Server(string& host, int port);
     void SetResponseBuffer(vector<char>& buffer);
     void run() override;
+    void handle_client(int client_socket);
     ~Server();
 private:
     vector<char> response_buffer;

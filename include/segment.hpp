@@ -77,6 +77,11 @@ Segment fin();
  */
 Segment finAck();
 
+/**
+ * Generate Segment that contain PSH packet
+ */
+Segment psh(uint32_t seqNum, uint32_t ackNum, vector<char> payload);
+
 uint16_t calculateSum(Segment& segment);
 
 // update return type as needed
