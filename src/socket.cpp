@@ -439,7 +439,7 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
         Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
         cout << MAG << "[~] " << ci.getFormattedStatus() << " Waiting for segments to be ACKed" << COLOR_RESET << endl;
-        // this_thread::sleep_for(chrono::milliseconds(10)); // collect all acks within 10ms, done by the other thread created by listen.
+        this_thread::sleep_for(chrono::milliseconds(10)); // collect all acks within 10ms, done by the other thread created by listen.
 
         auto recv_time = high_resolution_clock::now();
         chrono::seconds timeout_recv(2);
