@@ -36,7 +36,7 @@ int32_t ConnectionInfo::get_port(){
 }
 
 string ConnectionInfo::get_host_port(){
-    return string(inet_ntoa(addr.sin_addr)) + ":" + to_string(addr.sin_port);
+    return string(inet_ntoa(addr.sin_addr)) + ":" + to_string(ntohs(addr.sin_port));
 }
 string ConnectionInfo::getFormattedStatus() {
     static const std::unordered_map<TCPStatusEnum, std::string> statusMap = {

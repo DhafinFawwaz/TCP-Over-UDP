@@ -73,7 +73,9 @@ void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort)
         vector<char> v(reinterpret_cast<char*>(dataStream) + currentIndex, reinterpret_cast<char*>(dataStream) + currentIndex + bytesToCopy);
         newSegment.payload = move(v);
 
-
+        if(i == segmentCount - 1){
+            newSegment.flags.psh = 1;
+        }
         newSegment.options = vector<char>(0);
         newSegment.window = windowSize;
         // cout << "window size:" << +windowSize << endl;
@@ -86,6 +88,7 @@ void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort)
         // segmentMap[newSegment.seq_num] = newSegment;
         segmentMap.insert(make_pair(static_cast<uint32_t>(newSegment.seq_num), newSegment));
         currentIndex += PAYLOAD_SIZE;
+
     }
 }
 

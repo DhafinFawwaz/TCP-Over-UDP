@@ -42,6 +42,7 @@ struct Segment
     vector<char> payload;
 } __attribute__((packed));
 
+const uint8_t PSH_FLAG = 0b00001000;
 const uint8_t FIN_FLAG = 0b00000001;
 const uint8_t SYN_FLAG = 0b00000010;
 const uint8_t ACK_FLAG = 0b00010000;

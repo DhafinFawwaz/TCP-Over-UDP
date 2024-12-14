@@ -32,7 +32,6 @@ void Server::run() {
         while(true) {
             sockaddr_in addr; socklen_t len = sizeof(addr);
             int client_socket = this->connection.accept(&addr, &len);
-            this->handle_client(client_socket);
             threads.emplace_back([this, client_socket]() {
                 this->handle_client(client_socket);
             });

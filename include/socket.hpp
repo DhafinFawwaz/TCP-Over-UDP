@@ -40,7 +40,7 @@ private:
     void sendAny(const char* ip, int32_t port, void* dataStream, uint32_t dataSize);
     void sendAddr(sockaddr_in& addr, void* dataStream, uint32_t dataSize);
 
-    void fin_send(const char* ip, int32_t port);
+    void fin_send(ConnectionInfo& ci);
     void fin_recv(sockaddr_in* addr, socklen_t* len);
     bool isSocketBinded(int socket_fd);
 
@@ -52,8 +52,11 @@ private:
     string toHostPort(sockaddr_in addr);
 
     Segment pop_in_queue_with_flag(uint8_t flag);
-    bool pop_in_queue_with_flag(Segment& segment, sockaddr_in& clientAddr, uint8_t flag);
-    bool pop_in_queue_with_condition(Segment& segment, sockaddr_in& clientAddr, function<bool(Segment, sockaddr_in)> condition);
+    bool pop_in_queue_not_connected_with_flag(Segment& segment, sockaddr_in& clientAddr, uint8_t flag);
+    bool pop_in_queue_not_connected_with_condition(Segment& segment, sockaddr_in& clientAddr, function<bool(Segment, sockaddr_in)> condition);
+
+    string create_retry_message(uint32_t retry_count);
+    bool is_connected(sockaddr_in addr);
 public:
     map<int, ConnectionInfo> connection_map;
 

@@ -22,19 +22,21 @@ void Client::run() {
     vector<uint8_t> buffer(MAX_BUFFER_SIZE);
     sockaddr_in addr; 
     socklen_t len = sizeof(addr);
-
-    int32_t recv_size = this->connection.recv(buffer.data(), buffer.size(), &addr, &len);
     
-    if (recv_size > 0) {
-        handleMessage(buffer.data(), recv_size);
-    } else {
-        cout << RED << "[-] Failed to receive data" << COLOR_RESET << endl;
+    int32_t recv_size = 0;
+    while(true) {
+        ssize_t recv_size = this->connection.recv(buffer.data(), buffer.size(), &addr, &len);
+        if (recv_size > 0) {
+            handleMessage(buffer.data(), recv_size);
+        } else {
+            break;
+        }
     }
 }
 
 
 void Client::handleMessage(void* response, uint32_t size) {
-    cout << "[+] Received: " << size << " byte" << endl;
+    cout << "[+] Received: " << size << " bytes" << endl;
     ofstream outFile("test/response", ios::binary);
     outFile.write(static_cast<const char*>(response), size);
     outFile.close();
