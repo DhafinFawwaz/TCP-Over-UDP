@@ -555,9 +555,8 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
     map<uint32_t, Segment> buffers;
     auto send_time = high_resolution_clock::now();
-    chrono::seconds timeout(10);
+    chrono::seconds timeout(1);
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
-
 
     while (true) {
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
@@ -575,7 +574,16 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         Segment recv_segment;
         memcpy(&recv_segment, payload, HEADER_ONLY_SIZE);
-        if(isValidChecksum(recv_segment) && extract_flags(recv_segment.flags) == FIN_FLAG) {
+        bool isHeaderOnlyChecksumValid = isValidChecksum(recv_segment);
+        if(isHeaderOnlyChecksumValid && extract_flags(recv_segment.flags) == SYN_ACK_FLAG) {
+            ConnectionInfo ci(*addr);
+            cout << YEL << "[+] " << getFormattedStatus() << " [S=" << recv_segment.seq_num << "] [A=" << recv_segment.ack_num << "] Received SYN-ACK request again from " << ci.get_host_port() << ". Ack is probably lost which makes sender resends the SYN-ACK." << COLOR_RESET << endl;
+            Segment ack_segment = ack(recv_segment.ack_num + 1);
+            cout << BLU << "[i] " << getFormattedStatus() << " [A=" << ack_segment.ack_num << "] Resending ACK request to " << ci.get_host_port() << COLOR_RESET << endl;
+            sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
+            break;
+        }
+        if(isHeaderOnlyChecksumValid && extract_flags(recv_segment.flags) == FIN_FLAG) {
             fin_recv(addr, len);
             this->status = TCPStatusEnum::CLOSING;
             break;
@@ -588,7 +596,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         // cout << "options_size: " << options_size << endl;
         // cout << "payload_size: " << payload_size << endl;
         
-        if(options_size < 5 || options_size > DATA_OFFSET_MAX_SIZE) {
+        if(options_size < 5 || options_size > DATA_OFFSET_MAX_SIZE) { // 20 - 60 bytes
             uint32_t data_index = calculateSegmentIndex(recv_segment.seq_num, initial_seq_num);
             cout << RED << "[-] " << getFormattedStatus() << " [Seg=" << data_index << "] [A=" << recv_segment.seq_num << "] Invalid data offset" << COLOR_RESET << endl;
             continue;
@@ -647,7 +655,8 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         uint32_t total_received = 0;
         // iterate buffer from seq_num_ack to latest element of the map/buffer
         for(auto& [seq_num, segment] : buffers) {
-            if(!seq_num == seq_num_ack) continue;
+            if(seq_num < seq_num_ack) continue;
+            if(buffers.find(seq_num_ack + total_received) == buffers.end()) break; // break when we found a gap
             total_received += segment.payload.size();
         }
 
@@ -657,16 +666,16 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         // cout << "initial_seq_num: " << initial_seq_num << endl;
         // cout << "initial_acl_num: " << initial_ack_num << endl;
         // cout << "total_received: " << total_received << endl;
-        if(!(prev(buffers.end())->first + prev(buffers.end())->second.payload.size() - initial_seq_num == total_received)) {
+        // if(!(prev(buffers.end())->first + prev(buffers.end())->second.payload.size() - initial_seq_num == total_received)) {
             // cout << "!(prev(buffers.end())->first + prev(buffers" << endl;
-            continue;
-        }
+            // continue;
+        // }
 
 
         // cout << "sending ack"<< endl;
         // cout << "prev(buffers.end())->first: " << prev(buffers.end())->first << endl;
         // cout << "prev(buffers.end())->second.payload.size(): " << prev(buffers.end())->second.payload.size() << endl;
-        seq_num_ack = prev(buffers.end())->first + prev(buffers.end())->second.payload.size();
+        seq_num_ack = seq_num_ack + total_received;
         LFR = seq_num_ack;
         LAF = LFR + RWS;
         Segment ack_segment = ack(seq_num_ack);
@@ -685,10 +694,6 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
             }
             return current;
         }
-    }
-    if(this->status == TCPStatusEnum::FAILED) {
-        cout << RED << "[-] " << getFormattedStatus() << COLOR_RESET << endl;
-        return -1;
     }
     return -1;
 }
