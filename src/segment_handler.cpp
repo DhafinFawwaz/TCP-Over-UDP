@@ -47,7 +47,7 @@ void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort)
     uint32_t remainingData = dataSize;
     uint32_t currentSeqNum = this->currentSeqNum;
     
-    // this->segmentMap.clear()
+    this->segmentMap.clear();
     // try {this->segmentMap.clear();}
     // catch(exception e){cout << e.what() << endl;}
     
