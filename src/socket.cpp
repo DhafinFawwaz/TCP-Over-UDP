@@ -145,6 +145,14 @@ void TCPSocket::recvHeaderLoop() {
             cout << RED << "[i] " << getFormattedStatus() << " Invalid checksum, received corrupted packet" << COLOR_RESET << endl;
             continue;
         }
+
+        if(extract_flags(segment.flags) == FIN_ACK_FLAG) {
+            ConnectionInfo ci(addr);
+            string hostPort = ci.get_host_port();
+            handle_fin_ack(ci, segment.ack_num, hostPort);
+            continue;
+        }
+
         this->received_buffer_queue[addr].push(segment);
     }
 }
@@ -377,52 +385,43 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
     const uint32_t SWS = (4 - 1) * PAYLOAD_SIZE; // Sender Window Size
     uint32_t initial_seq_num = segment_handler.getInitialSeqNum();
     uint32_t initial_ack_num = segment_handler.getInitialAckNum();
-    uint32_t LAR = initial_seq_num; // Last Acknowledgment Received. -1 because if there's only 1 segment, initial_seq_num = last_seq_num.
+    uint32_t LAR = initial_seq_num; // Last Acknowledgment Received.
     segment_handler.setDataStream(dataStream, dataSize);
     // segment_handler.generateSegments(this->port, port);
     // cout << "generate segment" << endl;
     segment_handler.generateSegmentsMap(this->port, port);
     // cout << "generate segment done" << endl;
-    uint32_t LFS = min(initial_seq_num + SWS, prev(segment_handler.segmentMap.end())->second.seq_num); // Last Frame Sent
+    uint32_t LFS = initial_seq_num; // Last Frame Sent
 
-
-    auto send_time = high_resolution_clock::now();  
-    chrono::seconds timeout(5);
-    uint32_t resend_latest_ack_count = 0;
-    uint32_t max_resend_latest_ack_count = 4;
+    uint8_t max_retry_count = 4;
+    uint8_t retry_count = 0;
     while(true) {
-        // cout << "======================" << endl;
         // sleep(1);
-
-        bool anything_sent = false;
-        
         // cout << "LAR: " << LAR << endl;
         // cout << "LFS: " << LFS << endl;
-        for(auto& [seq_num, segment] : segment_handler.segmentMap) {
-            if(seq_num < LAR) continue;
-            if(seq_num > LFS) break;
-            anything_sent = true;
-            
-            // char payload[sizeof(Segment) + segment.payload_len];
-            char* payload = new char[segment.data_offset*4 + segment.payload.size()];
+
+        while(LFS - LAR <= SWS) {
+            if(segment_handler.segmentMap.find(LFS) == segment_handler.segmentMap.end()) {
+                cout << GRN << "[i] " << ci.getFormattedStatus() << " No more segments to send" << COLOR_RESET << endl;
+                return;
+            }
+            Segment segment = segment_handler.segmentMap[LFS];
+            uint64_t payload_size = segment.data_offset*4 + segment.payload.size();
+            char* payload = new char[payload_size];
             memcpy(payload, &segment, HEADER_ONLY_SIZE);
-            // memcpy(payload+sizeof(Segment)-16, segment.options, 8);
             memcpy(payload+HEADER_ONLY_SIZE, segment.options.data(), segment.options.size());
             memcpy(payload+segment.data_offset*4, segment.payload.data(), segment.payload.size());
-            // cout << "sending: " << segment.payload.size() << endl;
-            // cout << "sending segment.data_offset: " << segment.data_offset << endl;
-            sendAddr(ci.addr, payload, segment.data_offset*4 + segment.payload.size());
+            sendAddr(ci.addr, payload, payload_size);
             delete[] payload;
-            uint32_t data_index = calculateSegmentIndex(seq_num, initial_seq_num);
-            cout << BLU << "[i] " << ci.getFormattedStatus() << " [Seg " << data_index << "] [S=" << segment.seq_num << "] Sent to " << hostPort << endl;
+            uint32_t data_index = calculateSegmentIndex(LFS, initial_seq_num);
+            cout << BLU << "[i] " << ci.getFormattedStatus() << " [Seg " << data_index << "] [S=" << segment.seq_num << "] Sent to " << hostPort << create_retry_message(retry_count) << endl;
+            LFS += segment.payload.size();
         }
-        if(!anything_sent) break;
 
         Segment ack_segment;
         sockaddr_in addr; socklen_t len = sizeof(addr);
-        // [~] [Established] Waiting for segments to be ACKed
         cout << MAG << "[~] " << ci.getFormattedStatus() << " Waiting for segments to be ACKed" << COLOR_RESET << endl;
-        this_thread::sleep_for(chrono::milliseconds(10)); // collect all acks within 10ms, done by the other thread created by listen.
+        // this_thread::sleep_for(chrono::milliseconds(10)); // collect all acks within 10ms, done by the other thread created by listen.
 
         auto recv_time = high_resolution_clock::now();
         chrono::seconds timeout_recv(2);
@@ -431,6 +430,8 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
             if(queue.empty()) {
                 if(high_resolution_clock::now() - recv_time < timeout_recv) continue; else {
                     cout << RED << "[i] " << ci.getFormattedStatus() << " Timeout waiting for ACK from " << hostPort << COLOR_RESET << endl;
+                    LFS = LAR;
+                    retry_count++;
                     break;
                 }
             }
@@ -445,14 +446,14 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
                 queue.pop();
             }
 
+            retry_count = 0;
+
             // cout << "LFS: " << LFS << endl;
             // cout << "LAR: " << LAR << endl;
             // cout << "if(!isValidChecksum(ack_segment))" << endl;
 
             // cout << "ack: " << ack_segment.ack_num << endl;
-            resend_latest_ack_count = 0;
-            LFS = min(prev(segment_handler.segmentMap.end())->second.seq_num, LFS + ack_segment.ack_num - LAR);
-            LAR = max(LAR, ack_segment.ack_num);
+            LAR = max(LAR, ack_segment.ack_num); // LAR if client send already acked value, maybe because of retries. ack_segment.ack_num to proceed forward. its the ack num that the client wants next
 
             uint32_t data_index = calculateSegmentIndex(ack_segment.ack_num, initial_seq_num);
             cout << YEL << "[i] " << ci.getFormattedStatus() << " [Seg " << data_index-1 << "] [A=" << ack_segment.ack_num << "] ACKed from " << hostPort << COLOR_RESET << endl;
@@ -462,17 +463,27 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
             
             break;
         }
-    }
-
-    if(this->status == TCPStatusEnum::FAILED) {
-        cout << RED << "[-] " << ci.getFormattedStatus() << COLOR_RESET << endl;
-        return;
+        if(retry_count >= max_retry_count) {
+            cout << RED << "[i] " << ci.getFormattedStatus() << " Retries exceeded limit" << COLOR_RESET << endl;
+            segment_handler.setInitialSeqNum(LFS); // so that the next request will have a new seq_num
+            return;
+        }
     }
     
     segment_handler.setInitialSeqNum(LFS); // so that the next request will have a new seq_num
 }
 
 
+void TCPSocket::handle_fin_ack(ConnectionInfo& ci, uint32_t ack_num, string& hostPort) {
+    cout << YEL << "[+] " << ci.getFormattedStatus() << " Received FIN-ACK request from " << hostPort << COLOR_RESET << endl;
+    ci.status = TCPStatusEnum::CLOSING;
+    Segment ack_segment = ack(ack_num);
+    sendAddr(ci.addr, &ack_segment, HEADER_ONLY_SIZE);
+    ci.status = TCPStatusEnum::TIME_WAIT;
+    cout << BLU << "[i] " << ci.getFormattedStatus() << " Sending ACK request to " << hostPort << COLOR_RESET << endl;
+    ci.status = TCPStatusEnum::CLOSED;
+    cout << GRN << "[i] " << ci.getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
+}
 
 void TCPSocket::fin_send(ConnectionInfo& ci) {
     string ip = ci.get_ip();
@@ -509,18 +520,7 @@ void TCPSocket::fin_send(ConnectionInfo& ci) {
                 }
                 queue.pop();
             }
-
-
-            
-            // maybe create a new thread to handle case when the fin ack is received again when the connection is already closed because the ack packet is lost
-            cout << YEL << "[+] " << ci.getFormattedStatus() << " Received FIN-ACK request from " << hostPort << COLOR_RESET << endl;
-            ci.status = TCPStatusEnum::CLOSING;
-            Segment ack_segment = ack(fin_ack_segment.ack_num);
-            sendAddr(ci.addr, &ack_segment, HEADER_ONLY_SIZE);
-            ci.status = TCPStatusEnum::TIME_WAIT;
-            cout << BLU << "[i] " << ci.getFormattedStatus() << " Sending ACK request to " << hostPort << COLOR_RESET << endl;
-            ci.status = TCPStatusEnum::CLOSED;
-            cout << GRN << "[i] " << ci.getFormattedStatus() << " Connection closed successfully" << COLOR_RESET << endl;
+            // handle_fin_ack(ci, fin_ack_segment.ack_num, hostPort); // automatically handled by the other thread created by listen
             return;
         }
         retry_count_fin++;

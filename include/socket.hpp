@@ -57,6 +57,8 @@ private:
 
     string create_retry_message(uint32_t retry_count);
     bool is_connected(sockaddr_in addr);
+
+    void handle_fin_ack(ConnectionInfo& ci, uint32_t ack_num, string& hostPort);
 public:
     map<int, ConnectionInfo> connection_map;
 
