@@ -248,7 +248,7 @@ int TCPSocket::accept(sockaddr_in* addr, socklen_t* len) {
         cout << YEL << "[i] " << ci.getFormattedStatus() << " [S=" << syn_segment.seq_num << "] Received SYN request from " << hostPort << endl << COLOR_RESET;
 
         uint8_t retry_count_syn = 0;
-        uint8_t max_retry_count_syn = 4;
+        uint8_t max_retry_count_syn = 10;
 
         Segment syn_ack_segment;
         Segment ack_segment;
@@ -328,7 +328,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
     Segment syn_segment, syn_ack_segment, ack_segment;
 
     uint32_t retry_count = 0;
-    uint32_t max_retry_count = 4;
+    uint32_t max_retry_count = 10;
     while(true) {
         uint32_t initial_seq_num = segment_handler.generateInitialSeqNum();
         this->status = TCPStatusEnum::SYN_SENT;
@@ -337,7 +337,7 @@ void TCPSocket::connect(string& server_ip, int32_t server_port) {
         sendAny(server_ip.c_str(), server_port, &syn_segment, HEADER_ONLY_SIZE);
 
         auto send_time_syn_ack = high_resolution_clock::now();
-        chrono::seconds timeout_syn_ack(1); // time limit to receive syn ack
+        chrono::seconds timeout_syn_ack(2); // time limit to receive syn ack
         while(true) {
             auto sync_ack_buffer_size = recvAny(&syn_ack_segment, HEADER_ONLY_SIZE, &addr, &len);
             string hostPort = toHostPort(addr);
@@ -412,7 +412,7 @@ void TCPSocket::send(int client_socket, void* dataStream, uint32_t dataSize) {
     // cout << "generate segment done" << endl;
     uint32_t LFS = initial_seq_num; // Last Frame Sent
 
-    uint8_t max_retry_count = 4;
+    uint8_t max_retry_count = 10;
     uint8_t retry_count = 0;
     while(true) {
         // sleep(1);
@@ -521,7 +521,7 @@ void TCPSocket::fin_send(ConnectionInfo& ci) {
     Segment fin_segment = fin();
 
 
-    uint32_t max_retry_fin = 4;
+    uint32_t max_retry_fin = 10;
     uint32_t retry_count_fin = 0;
     while(true) {
         ci.status = TCPStatusEnum::FIN_WAIT_1;
@@ -575,7 +575,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
     cout << MAG << "[~] " << getFormattedStatus() << " Waiting for segments to be sent" << COLOR_RESET << endl;
     
     // TODO: find out how much should this value be
-    const uint32_t RWS = 3 * PAYLOAD_SIZE; // Receiver Window Size
+    const uint32_t RWS = 4 * PAYLOAD_SIZE; // Receiver Window Size
     uint32_t initial_seq_num = segment_handler.getInitialSeqNum();
     uint32_t initial_ack_num = segment_handler.getInitialAckNum();
     uint32_t LFR = initial_seq_num; // Last Frame Received
@@ -736,7 +736,7 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
     cout << YEL << "[i] " << getFormattedStatus() << " Received FIN request from " << hostPort << COLOR_RESET << endl;
 
 
-    uint8_t max_retry_fin = 4;
+    uint8_t max_retry_fin = 10;
     uint8_t retry_count_fin = 0;
 
     while(true) {
@@ -747,7 +747,7 @@ void TCPSocket::fin_recv(sockaddr_in* addr, socklen_t* len) {
         
         Segment ack_segment;
         auto send_time_ack = high_resolution_clock::now();
-        chrono::seconds timeout_ack(1);
+        chrono::seconds timeout_ack(2);
         while(true) {
             int recv_size = recvAny(&ack_segment, HEADER_ONLY_SIZE, addr, len);
             if(recv_size < 0) {
