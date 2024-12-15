@@ -34,7 +34,9 @@ uint32_t SegmentHandler::generateInitialSeqNum(){
     urandom.read(reinterpret_cast<char*>(&randomValue), sizeof(randomValue));
     urandom.close();
     
-    return randomValue; 
+    const uint32_t SIZE_CAP = 1024 * 1024 * 1024;
+    const uint32_t MAX_SEQ_NUM = WINT_MAX - SIZE_CAP; // 3221225471
+    return randomValue % MAX_SEQ_NUM; 
 }
 void SegmentHandler::generateSegmentsMap(uint16_t sourcePort, uint16_t destPort){
     if (dataSize == 0 || dataStream == nullptr) {
