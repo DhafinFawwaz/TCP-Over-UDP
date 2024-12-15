@@ -655,7 +655,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         string hostPort = toHostPort(*addr);
 
         if(recv_segment.seq_num < LFR || recv_segment.seq_num >= LAF) {
-            if(recv_segment.seq_num >= initial_seq_num) { // meaning it has been acked but the ack is loss so the server resend it.
+            if(recv_segment.seq_num >= initial_seq_num && recv_segment.seq_num < LFR) { // meaning it has been acked but the ack is loss so the server resend it.
                 // resend the ack
                 uint32_t data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
                 Segment ack_segment = ack(seq_num_ack);
