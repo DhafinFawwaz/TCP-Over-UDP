@@ -656,6 +656,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
         if(recv_segment.seq_num < LFR || recv_segment.seq_num >= LAF) {
             if(recv_segment.seq_num >= initial_seq_num && recv_segment.seq_num < LFR) { // meaning it has been acked but the ack is loss so the server resend it.
+            // only send ack if its smaller
                 // resend the ack
                 uint32_t data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
                 Segment ack_segment = ack(seq_num_ack);
@@ -715,7 +716,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
         data_index = calculateSegmentIndex(seq_num_ack, initial_seq_num);
         cout << BLU << "[+] " << getFormattedStatus() << " [Seg=" << data_index-1 << "] [A=" << seq_num_ack << "] Sent to " << hostPort << COLOR_RESET << endl;
 
-        if(extract_flags(recv_segment.flags) == PSH_FLAG) {
+        if(extract_flags(buffers.rbegin()->second.flags) == PSH_FLAG) {
             segment_handler.setInitialAckNum(seq_num_ack); // so that the next request will have a new ack_num
 
             uint32_t current = 0;
