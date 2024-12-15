@@ -46,7 +46,7 @@ TCPSocket::TCPSocket(string& ip, int32_t port){
         exit(EXIT_FAILURE); 
     }
 
-    cout << "[i] [BIND] Socket binded to " << ip << ":" << port << endl;
+    // cout << "[i] [BIND] Socket binded to " << ip << ":" << port << endl;
 
     int flags = fcntl(this->socket, F_GETFL, 0);
     if (flags == -1) {
@@ -187,6 +187,7 @@ bool TCPSocket::is_connected(sockaddr_in addr) {
     for(auto& [key, value] : this->connection_map) {
         if(value.addr.sin_addr.s_addr == addr.sin_addr.s_addr && value.addr.sin_port == addr.sin_port) return true;
     }
+    return false;
 }
 
 bool TCPSocket::pop_in_queue_not_connected_with_flag(Segment& segment, sockaddr_in& clientAddr, uint8_t flag){
@@ -585,15 +586,16 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
 
     map<uint32_t, Segment> buffers;
     auto send_time = high_resolution_clock::now();
-    chrono::seconds timeout(1);
+    chrono::seconds timeout(5);
     char payload[DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE];
 
     while (true) {
         int recv_size = recvAny(&payload, DATA_OFFSET_MAX_SIZE + BODY_ONLY_SIZE, addr, len);
         if(recv_size < 0) {
-            if(high_resolution_clock::now() - send_time > timeout) {
+            if(high_resolution_clock::now() - send_time < timeout) continue; else {
+                cout << RED << "[i] " << getFormattedStatus() << " Timeout waiting for data from " << toHostPort(*addr) << COLOR_RESET << endl;
                 break;
-            } else continue;
+            }
         }
         send_time = high_resolution_clock::now(); // reset
         

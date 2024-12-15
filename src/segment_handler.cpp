@@ -16,7 +16,7 @@ SegmentHandler::SegmentHandler(){
     this->dataStream = nullptr;
     this->dataSize = 0;
     this->dataIndex = 0;
-    cout << "segment handler created" << endl;
+    // cout << "segment handler created" << endl;
     // this->segmentMap = map<uint32_t, Segment>();
 }
 
