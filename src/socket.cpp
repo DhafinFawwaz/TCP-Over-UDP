@@ -612,7 +612,7 @@ ssize_t TCPSocket::recv(void* receive_buffer, uint32_t length, sockaddr_in* addr
             Segment ack_segment = ack(recv_segment.ack_num + 1);
             cout << BLU << "[i] " << getFormattedStatus() << " [A=" << ack_segment.ack_num << "] Resending ACK request to " << ci.get_host_port() << COLOR_RESET << endl;
             sendAny(this->connected_ip.c_str(), this->connected_port, &ack_segment, HEADER_ONLY_SIZE);
-            break;
+            continue;
         }
         if(isHeaderOnlyChecksumValid && extract_flags(recv_segment.flags) == FIN_FLAG) {
             fin_recv(addr, len);
